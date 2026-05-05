@@ -1,0 +1,3358 @@
+diff -prNu android-8.1.0_r65/build/make/core/Makefile android-8.1.0_r65-phh/build/make/core/Makefile
+--- android-8.1.0_r65/build/make/core/Makefile	2026-05-04 20:38:01.151931625 -0400
++++ android-8.1.0_r65-phh/build/make/core/Makefile	2026-05-04 20:39:14.375936685 -0400
+@@ -90,7 +90,8 @@ INSTALLED_DEFAULT_PROP_TARGET := $(TARGE
+ endif
+ ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_DEFAULT_PROP_TARGET)
+ FINAL_DEFAULT_PROPERTIES := \
+-    $(call collapse-pairs, $(ADDITIONAL_DEFAULT_PROPERTIES))
++    $(call collapse-pairs, $(ADDITIONAL_DEFAULT_PROPERTIES)) \
++    $(call collapse-pairs, $(PRODUCT_SYSTEM_DEFAULT_PROPERTIES))
+ ifndef property_overrides_split_enabled
+   FINAL_DEFAULT_PROPERTIES += \
+       $(call collapse-pairs, $(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
+@@ -115,6 +116,7 @@ $(INSTALLED_DEFAULT_PROP_TARGET): $(inte
+ 	$(hide) echo ro.bootimage.build.date=`$(DATE_FROM_FILE)`>>$@
+ 	$(hide) echo ro.bootimage.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
+ 	$(hide) echo ro.bootimage.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
++	$(hide) echo ro.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
+ 	$(hide) build/tools/post_process_props.py $@
+ ifdef property_overrides_split_enabled
+ 	$(hide) mkdir -p $(TARGET_ROOT_OUT)
+diff -prNu android-8.1.0_r65/build/make/core/build_id.mk android-8.1.0_r65-phh/build/make/core/build_id.mk
+--- android-8.1.0_r65/build/make/core/build_id.mk	2026-05-04 20:38:01.151931625 -0400
++++ android-8.1.0_r65-phh/build/make/core/build_id.mk	2026-05-04 20:39:14.375936685 -0400
+@@ -18,4 +18,4 @@
+ # (like "CRB01").  It must be a single word, and is
+ # capitalized by convention.
+ 
+-export BUILD_ID=OPM8.190605.003
++export BUILD_ID=OPM8.190605
+diff -prNu android-8.1.0_r65/build/make/core/dex_preopt_libart.mk android-8.1.0_r65-phh/build/make/core/dex_preopt_libart.mk
+--- android-8.1.0_r65/build/make/core/dex_preopt_libart.mk	2026-05-04 20:38:01.155931624 -0400
++++ android-8.1.0_r65-phh/build/make/core/dex_preopt_libart.mk	2026-05-04 20:39:14.379936685 -0400
+@@ -30,7 +30,9 @@ DIRTY_IMAGE_OBJECTS := $(call word-colon
+     $(filter %system/etc/dirty-image-objects,$(PRODUCT_COPY_FILES))))
+ 
+ define get-product-default-property
+-$(strip $(patsubst $(1)=%,%,$(filter $(1)=%,$(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))))
++$(strip \
++  $(eval _prop := $(patsubst $(1)=%,%,$(filter $(1)=%,$(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))))\
++  $(if $(_prop),$(_prop),$(patsubst $(1)=%,%,$(filter $(1)=%,$(PRODUCT_SYSTEM_DEFAULT_PROPERTIES)))))
+ endef
+ 
+ DEX2OAT_IMAGE_XMS := $(call get-product-default-property,dalvik.vm.image-dex2oat-Xms)
+diff -prNu android-8.1.0_r65/build/make/core/product-graph.mk android-8.1.0_r65-phh/build/make/core/product-graph.mk
+--- android-8.1.0_r65/build/make/core/product-graph.mk	2026-05-04 20:38:01.159931624 -0400
++++ android-8.1.0_r65-phh/build/make/core/product-graph.mk	2026-05-04 20:39:14.383936686 -0400
+@@ -103,6 +103,7 @@ $(OUT_DIR)/products/$(strip $(1)).txt: $
+ 	$(hide) echo 'PRODUCT_MANUFACTURER=$$(PRODUCTS.$(strip $(1)).PRODUCT_MANUFACTURER)' >> $$@
+ 	$(hide) echo 'PRODUCT_PROPERTY_OVERRIDES=$$(PRODUCTS.$(strip $(1)).PRODUCT_PROPERTY_OVERRIDES)' >> $$@
+ 	$(hide) echo 'PRODUCT_DEFAULT_PROPERTY_OVERRIDES=$$(PRODUCTS.$(strip $(1)).PRODUCT_DEFAULT_PROPERTY_OVERRIDES)' >> $$@
++	$(hide) echo 'PRODUCT_SYSTEM_DEFAULT_PROPERTIES=$$(PRODUCTS.$(strip $(1)).PRODUCT_SYSTEM_DEFAULT_PROPERTIES)' >> $$@
+ 	$(hide) echo 'PRODUCT_CHARACTERISTICS=$$(PRODUCTS.$(strip $(1)).PRODUCT_CHARACTERISTICS)' >> $$@
+ 	$(hide) echo 'PRODUCT_COPY_FILES=$$(PRODUCTS.$(strip $(1)).PRODUCT_COPY_FILES)' >> $$@
+ 	$(hide) echo 'PRODUCT_OTA_PUBLIC_KEYS=$$(PRODUCTS.$(strip $(1)).PRODUCT_OTA_PUBLIC_KEYS)' >> $$@
+diff -prNu android-8.1.0_r65/build/make/core/product.mk android-8.1.0_r65-phh/build/make/core/product.mk
+--- android-8.1.0_r65/build/make/core/product.mk	2026-05-04 20:38:01.159931624 -0400
++++ android-8.1.0_r65-phh/build/make/core/product.mk	2026-05-04 20:39:14.383936686 -0400
+@@ -112,6 +112,7 @@ _product_var_list := \
+     PRODUCT_SUPPORTS_VERITY \
+     PRODUCT_SUPPORTS_VERITY_FEC \
+     PRODUCT_OEM_PROPERTIES \
++    PRODUCT_SYSTEM_DEFAULT_PROPERTIES \
+     PRODUCT_SYSTEM_PROPERTY_BLACKLIST \
+     PRODUCT_SYSTEM_SERVER_APPS \
+     PRODUCT_SYSTEM_SERVER_JARS \
+diff -prNu android-8.1.0_r65/build/make/core/product_config.mk android-8.1.0_r65-phh/build/make/core/product_config.mk
+--- android-8.1.0_r65/build/make/core/product_config.mk	2026-05-04 20:38:01.159931624 -0400
++++ android-8.1.0_r65-phh/build/make/core/product_config.mk	2026-05-04 20:39:14.383936686 -0400
+@@ -359,6 +359,13 @@ PRODUCT_DEFAULT_PROPERTY_OVERRIDES := \
+     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEFAULT_PROPERTY_OVERRIDES))
+ .KATI_READONLY := PRODUCT_DEFAULT_PROPERTY_OVERRIDES
+ 
++# A list of property assignments, like "key = value", with zero or more
++# whitespace characters on either side of the '='.
++# used for adding properties to default.prop of system partition
++PRODUCT_SYSTEM_DEFAULT_PROPERTIES := \
++    $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_DEFAULT_PROPERTIES))
++.KATI_READONLY := PRODUCT_SYSTEM_DEFAULT_PROPERTIES
++
+ # Should we use the default resources or add any product specific overlays
+ PRODUCT_PACKAGE_OVERLAYS := \
+     $(strip $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_PACKAGE_OVERLAYS))
+diff -prNu android-8.1.0_r65/build/make/target/board/generic_arm64_ab/BoardConfig.mk android-8.1.0_r65-phh/build/make/target/board/generic_arm64_ab/BoardConfig.mk
+--- android-8.1.0_r65/build/make/target/board/generic_arm64_ab/BoardConfig.mk	2026-05-04 20:38:01.159931624 -0400
++++ android-8.1.0_r65-phh/build/make/target/board/generic_arm64_ab/BoardConfig.mk	2026-05-04 20:39:14.387936686 -0400
+@@ -33,7 +33,7 @@ TARGET_NO_RECOVERY := true
+ BOARD_BUILD_SYSTEM_ROOT_IMAGE := true
+ 
+ # TODO(jiyong) These might be SoC specific.
+-BOARD_ROOT_EXTRA_FOLDERS += firmware firmware/radio persist
++BOARD_ROOT_EXTRA_FOLDERS += bt_firmware firmware firmware/radio persist
+ BOARD_ROOT_EXTRA_SYMLINKS := /vendor/lib/dsp:/dsp
+ 
+ # TODO(b/36764215): remove this setting when the generic system image
+diff -prNu android-8.1.0_r65/build/make/target/board/generic_arm64_ab/sepolicy/file.te android-8.1.0_r65-phh/build/make/target/board/generic_arm64_ab/sepolicy/file.te
+--- android-8.1.0_r65/build/make/target/board/generic_arm64_ab/sepolicy/file.te	2026-05-04 20:38:01.159931624 -0400
++++ android-8.1.0_r65-phh/build/make/target/board/generic_arm64_ab/sepolicy/file.te	2026-05-04 20:39:14.387936686 -0400
+@@ -1,5 +1,6 @@
+ # TODO(b/36764215): remove this file when the generic system image
+ # no longer has these directories
++type bt_firmware_file, file_type;
+ type persist_file, file_type;
+ 
+ # Default type for anything under /firmware.
+diff -prNu android-8.1.0_r65/build/make/target/board/generic_arm64_ab/sepolicy/file_contexts android-8.1.0_r65-phh/build/make/target/board/generic_arm64_ab/sepolicy/file_contexts
+--- android-8.1.0_r65/build/make/target/board/generic_arm64_ab/sepolicy/file_contexts	2026-05-04 20:38:01.159931624 -0400
++++ android-8.1.0_r65-phh/build/make/target/board/generic_arm64_ab/sepolicy/file_contexts	2026-05-04 20:39:14.387936686 -0400
+@@ -2,6 +2,7 @@
+ # no longer has these directories. They are specific to QCOM.
+ 
+ # /
++/bt_firmware(/.*)?      u:object_r:bt_firmware_file:s0
+ /tombstones             u:object_r:rootfs:s0
+ /dsp                    u:object_r:rootfs:s0
+ 
+diff -prNu android-8.1.0_r65/build/make/target/product/runtime_libart.mk android-8.1.0_r65-phh/build/make/target/product/runtime_libart.mk
+--- android-8.1.0_r65/build/make/target/product/runtime_libart.mk	2026-05-04 20:38:01.163931623 -0400
++++ android-8.1.0_r65-phh/build/make/target/product/runtime_libart.mk	2026-05-04 20:39:14.387936686 -0400
+@@ -56,7 +56,7 @@ PRODUCT_PACKAGES += art-tools
+ PRODUCT_PACKAGES += \
+     cacerts \
+ 
+-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
++PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+     dalvik.vm.image-dex2oat-Xms=64m \
+     dalvik.vm.image-dex2oat-Xmx=64m \
+     dalvik.vm.dex2oat-Xms=64m \
+@@ -70,16 +70,16 @@ PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+ # Different dexopt types for different package update/install times.
+ # On eng builds, make "boot" reasons only extract for faster turnaround.
+ ifeq (eng,$(TARGET_BUILD_VARIANT))
+-    PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
++    PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+         pm.dexopt.first-boot=extract \
+         pm.dexopt.boot=extract
+ else
+-    PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
++    PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+         pm.dexopt.first-boot=quicken \
+         pm.dexopt.boot=verify
+ endif
+ 
+-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
++PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+     pm.dexopt.install=quicken \
+     pm.dexopt.bg-dexopt=speed-profile \
+     pm.dexopt.ab-ota=speed-profile \
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/include/cil/android.h android-8.1.0_r65-phh/external/selinux/libsepol/cil/include/cil/android.h
+--- android-8.1.0_r65/external/selinux/libsepol/cil/include/cil/android.h	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/include/cil/android.h	2026-05-04 20:39:14.455936695 -0400
+@@ -21,6 +21,8 @@ int cil_android_attrib_mapping(struct ci
+ /*
+  * cil_android_attributize - extract attributizable elements of the policy in
+  * srcdb and convert all usage of those elements in tgtdb to versioned attributes.
++ * Keep the attributes and type definitions so that tgtdb policy is more robust
++ * against future changes to the public policy.
+  *   tgtdb - initialized and parsed cil_db reference to modify.
+  *   srcdb - initialized and parsed cil_db reference to source public policy
+  *           from which to extract attributizable elements.
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/include/cil/cil.h android-8.1.0_r65-phh/external/selinux/libsepol/cil/include/cil/cil.h
+--- android-8.1.0_r65/external/selinux/libsepol/cil/include/cil/cil.h	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/include/cil/cil.h	2026-05-04 20:39:14.455936695 -0400
+@@ -46,6 +46,7 @@ extern int cil_userprefixes_to_string(ci
+ extern int cil_selinuxusers_to_string(cil_db_t *db, char **out, size_t *size);
+ extern int cil_filecons_to_string(cil_db_t *db, char **out, size_t *size);
+ extern void cil_set_disable_dontaudit(cil_db_t *db, int disable_dontaudit);
++extern void cil_set_multiple_decls(cil_db_t *db, int multiple_decls);
+ extern void cil_set_disable_neverallow(cil_db_t *db, int disable_neverallow);
+ extern void cil_set_preserve_tunables(cil_db_t *db, int preserve_tunables);
+ extern int cil_set_handle_unknown(cil_db_t *db, int handle_unknown);
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/src/android.c android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/android.c
+--- android-8.1.0_r65/external/selinux/libsepol/cil/src/android.c	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/android.c	2026-05-04 20:39:14.455936695 -0400
+@@ -200,23 +200,27 @@ static char *__cil_attrib_get_versname(c
+ 
+ /*
+  * Change type to attribute - create new versioned name based on old, create
+- * typeattribute node and replace existing type node.
++ * typeattribute node add to the existing type node.
+  */
+ static int __cil_attrib_convert_type(struct cil_tree_node *node, struct version_args *args)
+ {
+ 	int rc = SEPOL_ERR;
+ 	struct cil_type *type = (struct cil_type *)node->data;
+ 	struct cil_typeattribute *typeattr = NULL;
++	struct cil_tree_node *new_ast_node = NULL;
+ 	char *new_key;
+ 
+ 	cil_typeattribute_init(&typeattr);
+ 
+ 	new_key = __cil_attrib_get_versname(type->datum.name, args->num);
+ 
+-	cil_symtab_datum_remove_node(&type->datum, node);
+-	cil_destroy_type(type);
++	/* create new tree node to contain typeattribute and add to tree */
++	cil_tree_node_init(&new_ast_node);
++	new_ast_node->parent = node->parent;
++	new_ast_node->next = node->next;
++	node->next = new_ast_node;
+ 
+-	rc = cil_gen_node(args->db, node, (struct cil_symtab_datum *) typeattr,
++	rc = cil_gen_node(args->db, new_ast_node, (struct cil_symtab_datum *) typeattr,
+ 			  new_key, CIL_SYM_TYPES, CIL_TYPEATTRIBUTE);
+ 	if (rc != SEPOL_OK) {
+ 		goto exit;
+@@ -422,11 +426,6 @@ static int cil_attrib_typeattribute(stru
+ 		if (rc != SEPOL_OK) {
+ 			goto exit;
+ 		}
+-	} else if (__cil_get_plat_flavor(args->vers_map, key) == PLAT_ATTRIB) {
+-		// platform attribute declaration to be provided by platform policy
+-		cil_symtab_datum_remove_node(&typeattr->datum, node);
+-		cil_destroy_typeattribute(typeattr);
+-		node->flavor = CIL_NONE; // traversal relies on this node sticking around, empty it.
+ 	}
+ 
+ 	return SEPOL_OK;
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/src/cil.c android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil.c
+--- android-8.1.0_r65/external/selinux/libsepol/cil/src/cil.c	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil.c	2026-05-04 20:39:14.455936695 -0400
+@@ -1675,6 +1675,11 @@ void cil_set_mls(struct cil_db *db, int
+ 	db->mls = mls;
+ }
+ 
++void cil_set_multiple_decls(struct cil_db *db, int multiple_decls)
++{
++	db->multiple_decls = multiple_decls;
++}
++
+ void cil_set_target_platform(struct cil_db *db, int target_platform)
+ {
+ 	db->target_platform = target_platform;
+@@ -2033,6 +2038,7 @@ void cil_typeattribute_init(struct cil_t
+ 	(*attr)->expr_list = NULL;
+ 	(*attr)->types = NULL;
+ 	(*attr)->used = CIL_FALSE;
++	(*attr)->keep = CIL_FALSE;
+ }
+ 
+ void cil_typeattributeset_init(struct cil_typeattributeset **attrset)
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_binary.c android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_binary.c
+--- android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_binary.c	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_binary.c	2026-05-04 20:39:14.455936695 -0400
+@@ -567,7 +567,7 @@ int cil_typeattribute_to_policydb(policy
+ 	char *key = NULL;
+ 	type_datum_t *sepol_attr = NULL;
+ 
+-	if (!cil_attr->used) {
++	if (!cil_attr->keep) {
+ 		return SEPOL_OK;		
+ 	}
+ 
+@@ -632,7 +632,7 @@ int cil_typeattribute_to_bitmap(policydb
+ 	ebitmap_node_t *tnode;
+ 	unsigned int i;
+ 
+-	if (!cil_attr->used) {
++	if (!cil_attr->keep) {
+ 		return SEPOL_OK;
+ 	}
+ 
+@@ -1442,7 +1442,7 @@ static int __cil_should_expand_attribute
+ 
+ 	attr = (struct cil_typeattribute *)datum;
+ 
+-	return !attr->used || (ebitmap_cardinality(attr->types) < db->attrs_expand_size);
++	return !attr->keep || (ebitmap_cardinality(attr->types) < db->attrs_expand_size);
+ }
+ 
+ int __cil_avrule_to_avtab(policydb_t *pdb, const struct cil_db *db, struct cil_avrule *cil_avrule, cond_node_t *cond_node, enum cil_flavor cond_flavor)
+@@ -2525,7 +2525,7 @@ int __cil_constrain_expr_datum_to_sepol_
+ 			if (rc != SEPOL_OK) {
+ 				if (FLAVOR(item->data) == CIL_TYPEATTRIBUTE) {
+ 					struct cil_typeattribute *attr = item->data;
+-					if (!attr->used) {
++					if (!attr->keep) {
+ 						rc = 0;
+ 					}
+ 				}
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_build_ast.c android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_build_ast.c
+--- android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_build_ast.c	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_build_ast.c	2026-05-04 20:39:14.455936695 -0400
+@@ -82,10 +82,33 @@ exit:
+ 	return rc;
+ }
+ 
++/*
++ * Determine whether or not multiple declarations of the same key can share a
++ * datum, given the new datum and the one already present in a given symtab.
++ */
++int cil_is_datum_multiple_decl(__attribute__((unused)) struct cil_symtab_datum *cur,
++                               __attribute__((unused)) struct cil_symtab_datum *old,
++                               enum cil_flavor f)
++{
++	int rc = CIL_FALSE;
++
++	switch (f) {
++	case CIL_TYPE:
++	case CIL_TYPEATTRIBUTE:
++		/* type and typeattribute statements insert empty datums, ret true */
++		rc = CIL_TRUE;
++		break;
++	default:
++		break;
++	}
++	return rc;
++}
++
+ int cil_gen_node(__attribute__((unused)) struct cil_db *db, struct cil_tree_node *ast_node, struct cil_symtab_datum *datum, hashtab_key_t key, enum cil_sym_index sflavor, enum cil_flavor nflavor)
+ {
+ 	int rc = SEPOL_ERR;
+ 	symtab_t *symtab = NULL;
++	struct cil_symtab_datum *prev;
+ 
+ 	rc = __cil_verify_name((const char*)key);
+ 	if (rc != SEPOL_OK) {
+@@ -103,15 +126,26 @@ int cil_gen_node(__attribute__((unused))
+ 	if (symtab != NULL) {
+ 		rc = cil_symtab_insert(symtab, (hashtab_key_t)key, datum, ast_node);
+ 		if (rc == SEPOL_EEXIST) {
+-			cil_log(CIL_ERR, "Re-declaration of %s %s\n", 
+-				cil_node_to_string(ast_node), key);
+-			if (cil_symtab_get_datum(symtab, key, &datum) == SEPOL_OK) {
+-				if (sflavor == CIL_SYM_BLOCKS) {
+-					struct cil_tree_node *node = datum->nodes->head->data;
+-					cil_tree_log(node, CIL_ERR, "Previous declaration");
++			if (!db->multiple_decls ||
++			    cil_symtab_get_datum(symtab, (hashtab_key_t)key, &prev) != SEPOL_OK ||
++			    !cil_is_datum_multiple_decl(datum, prev, nflavor)) {
++
++				/* multiple_decls not ok, ret error */
++				cil_log(CIL_ERR, "Re-declaration of %s %s\n",
++					cil_node_to_string(ast_node), key);
++				if (cil_symtab_get_datum(symtab, key, &datum) == SEPOL_OK) {
++					if (sflavor == CIL_SYM_BLOCKS) {
++						struct cil_tree_node *node = datum->nodes->head->data;
++						cil_tree_log(node, CIL_ERR, "Previous declaration");
++					}
+ 				}
++				goto exit;
+ 			}
+-			goto exit;
++			/* multiple_decls is enabled and works for this datum type, add node */
++			cil_list_append(prev->nodes, CIL_NODE, ast_node);
++			ast_node->data = prev;
++			cil_symtab_datum_destroy(datum);
++			free(datum);
+ 		}
+ 	}
+ 
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_internal.h android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_internal.h
+--- android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_internal.h	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_internal.h	2026-05-04 20:39:14.455936695 -0400
+@@ -312,6 +312,7 @@ struct cil_db {
+ 	int preserve_tunables;
+ 	int handle_unknown;
+ 	int mls;
++	int multiple_decls;
+ 	int target_platform;
+ 	int policy_version;
+ };
+@@ -526,6 +527,7 @@ struct cil_typeattribute {
+ 	struct cil_list *expr_list;
+ 	ebitmap_t *types;
+ 	int used;	// whether or not this attribute was used in a binary policy rule
++	int keep;
+ };
+ 
+ struct cil_typeattributeset {
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_policy.c android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_policy.c
+--- android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_policy.c	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_policy.c	2026-05-04 20:39:14.455936695 -0400
+@@ -1085,7 +1085,7 @@ static void cil_typeattributes_to_policy
+ 		type = i1->data;
+ 		cil_list_for_each(i2, attributes) {
+ 			attribute = i2->data;
+-			if (!attribute->used)
++			if (!attribute->keep)
+ 				continue;
+ 			if (ebitmap_get_bit(attribute->types, type->value)) {
+ 				if (first) {
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_post.c android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_post.c
+--- android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_post.c	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_post.c	2026-05-04 20:39:14.455936695 -0400
+@@ -53,6 +53,83 @@
+ static int __cil_expr_to_bitmap(struct cil_list *expr, ebitmap_t *out, int max, struct cil_db *db);
+ static int __cil_expr_list_to_bitmap(struct cil_list *expr_list, ebitmap_t *out, int max, struct cil_db *db);
+ 
++static int cats_compare(struct cil_cats *a, struct cil_cats *b)
++{
++	struct cil_list_item *i, *j;
++	int rc;
++
++	if (a == b) return 0;
++	if (!a) return -1;
++	if (!b) return 1;
++
++	/* Expects cat expression to have been evaluated */
++	cil_list_for_each(i, a->datum_expr) {
++		cil_list_for_each(j, b->datum_expr) {
++			rc = strcmp(DATUM(i->data)->fqn, DATUM(j->data)->fqn);
++			if (!rc) return rc;
++		}
++	}
++	return 0;
++}
++
++static int level_compare(struct cil_level *a, struct cil_level *b)
++{
++	int rc;
++
++	if (a == b) return 0;
++	if (!a) return -1;
++	if (!b) return 1;
++
++	if (a->sens != b->sens) {
++		rc = strcmp(DATUM(a->sens)->fqn, DATUM(b->sens)->fqn);
++		if (rc != 0) return rc;
++	}
++	if (a->cats != b->cats) {
++		return cats_compare(a->cats, b->cats);
++	}
++	return 0;
++}
++
++static int range_compare(struct cil_levelrange *a, struct cil_levelrange *b)
++{
++	int rc;
++
++	if (a == b) return 0;
++	if (!a) return -1;
++	if (!b) return 1;
++
++	if (a->low != b->low) {
++		rc = level_compare(a->low, b->low);
++		if (rc != 0) return rc;
++	}
++	if (a->high != b->high) {
++		return level_compare(a->high, b->high);
++	}
++	return 0;
++}
++
++static int context_compare(struct cil_context *a, struct cil_context *b)
++{
++	int rc;
++
++	if (a->user != b->user) {
++		rc = strcmp(DATUM(a->user)->fqn, DATUM(b->user)->fqn);
++		if (rc != 0) return rc;
++	}
++	if (a->role != b->role) {
++		rc = strcmp(DATUM(a->role)->fqn, DATUM(b->role)->fqn);
++		if (rc != 0) return rc;
++	}
++	if (a->type != b->type) {
++		rc = strcmp(DATUM(a->type)->fqn, DATUM(b->type)->fqn);
++		if (rc != 0) return rc;
++	}
++	if (a->range != b->range) {
++		return range_compare(a->range, b->range);
++	}
++	return 0;
++}
++
+ static int cil_verify_is_list(struct cil_list *list, enum cil_flavor flavor)
+ {
+ 	struct cil_list_item *curr;
+@@ -144,6 +221,8 @@ int cil_post_filecon_compare(const void
+ 		rc = -1;
+ 	} else if (b_filecon->type < a_filecon->type) {
+ 		rc = 1;
++	} else {
++		rc = strcmp(a_filecon->path_str, b_filecon->path_str);
+ 	}
+ 
+ 	free(a_path);
+@@ -167,6 +246,10 @@ int cil_post_portcon_compare(const void
+ 			rc = -1;
+ 		} else if (bportcon->port_low < aportcon->port_low) {
+ 			rc = 1;
++		} else if (aportcon->proto < bportcon->proto) {
++			rc = -1;
++		} else if (aportcon->proto > bportcon->proto) {
++			rc = 1;
+ 		}
+ 	}
+ 
+@@ -327,6 +410,88 @@ int cil_post_fsuse_compare(const void *a
+ 	return rc;
+ }
+ 
++int cil_post_filecon_context_compare(const void *a, const void *b)
++{
++	struct cil_filecon *a_filecon = *(struct cil_filecon**)a;
++	struct cil_filecon *b_filecon = *(struct cil_filecon**)b;
++	return context_compare(a_filecon->context, b_filecon->context);
++}
++
++int cil_post_portcon_context_compare(const void *a, const void *b)
++{
++	struct cil_portcon *a_portcon = *(struct cil_portcon**)a;
++	struct cil_portcon *b_portcon = *(struct cil_portcon**)b;
++	return context_compare(a_portcon->context, b_portcon->context);
++}
++
++int cil_post_genfscon_context_compare(const void *a, const void *b)
++{
++	struct cil_genfscon *a_genfscon = *(struct cil_genfscon**)a;
++	struct cil_genfscon *b_genfscon = *(struct cil_genfscon**)b;
++	return context_compare(a_genfscon->context, b_genfscon->context);
++}
++
++int cil_post_netifcon_context_compare(const void *a, const void *b)
++{
++	int rc;
++	struct cil_netifcon *a_netifcon = *(struct cil_netifcon**)a;
++	struct cil_netifcon *b_netifcon = *(struct cil_netifcon**)b;
++	rc = context_compare(a_netifcon->if_context, b_netifcon->if_context);
++	if (rc != 0) {
++		return rc;
++	}
++	return context_compare(a_netifcon->packet_context, b_netifcon->packet_context);
++}
++
++int cil_post_nodecon_context_compare(const void *a, const void *b)
++{
++	struct cil_nodecon *a_nodecon = *(struct cil_nodecon **)a;
++	struct cil_nodecon *b_nodecon = *(struct cil_nodecon **)b;
++	return context_compare(a_nodecon->context, b_nodecon->context);
++}
++
++int cil_post_pirqcon_context_compare(const void *a, const void *b)
++{
++	struct cil_pirqcon *a_pirqcon = *(struct cil_pirqcon**)a;
++	struct cil_pirqcon *b_pirqcon = *(struct cil_pirqcon**)b;
++	return context_compare(a_pirqcon->context, b_pirqcon->context);
++}
++
++int cil_post_iomemcon_context_compare(const void *a, const void *b)
++{
++	struct cil_iomemcon *a_iomemcon = *(struct cil_iomemcon**)a;
++	struct cil_iomemcon *b_iomemcon = *(struct cil_iomemcon**)b;
++	return context_compare(a_iomemcon->context, b_iomemcon->context);
++}
++
++int cil_post_ioportcon_context_compare(const void *a, const void *b)
++{
++	struct cil_ioportcon *a_ioportcon = *(struct cil_ioportcon**)a;
++	struct cil_ioportcon *b_ioportcon = *(struct cil_ioportcon**)b;
++	return context_compare(a_ioportcon->context, b_ioportcon->context);
++}
++
++int cil_post_pcidevicecon_context_compare(const void *a, const void *b)
++{
++	struct cil_pcidevicecon *a_pcidevicecon = *(struct cil_pcidevicecon**)a;
++	struct cil_pcidevicecon *b_pcidevicecon = *(struct cil_pcidevicecon**)b;
++	return context_compare(a_pcidevicecon->context, b_pcidevicecon->context);
++}
++
++int cil_post_devicetreecon_context_compare(const void *a, const void *b)
++{
++	struct cil_devicetreecon *a_devicetreecon = *(struct cil_devicetreecon**)a;
++	struct cil_devicetreecon *b_devicetreecon = *(struct cil_devicetreecon**)b;
++	return context_compare(a_devicetreecon->context, b_devicetreecon->context);
++}
++
++int cil_post_fsuse_context_compare(const void *a, const void *b)
++{
++	struct cil_fsuse *a_fsuse = *(struct cil_fsuse**)a;
++	struct cil_fsuse *b_fsuse = *(struct cil_fsuse**)b;
++	return context_compare(a_fsuse->context, b_fsuse->context);
++}
++
+ static int __cil_post_db_count_helper(struct cil_tree_node *node, uint32_t *finished, void *extra_args)
+ {
+ 	struct cil_db *db = extra_args;
+@@ -1250,7 +1415,7 @@ static int __cil_post_db_attr_helper(str
+ 			rc = __evaluate_type_expression(attr, db);
+ 			if (rc != SEPOL_OK) goto exit;
+ 		}
+-		attr->used = cil_typeattribute_used(attr, db);
++		attr->keep = cil_typeattribute_used(attr, db);
+ 		break;
+ 	}
+ 	case CIL_ROLEATTRIBUTE: {
+@@ -1929,6 +2094,74 @@ exit:
+ 	return rc;
+ }
+ 
++static int __cil_post_report_conflict(struct cil_tree_node *node, uint32_t *finished, void *extra_args)
++{
++	struct cil_list_item *li = extra_args;
++
++	if (node->flavor == CIL_BLOCK) {
++		struct cil_block *blk = node->data;
++		if (blk->is_abstract == CIL_TRUE) {
++			*finished = CIL_TREE_SKIP_HEAD;
++		}
++	} else if (node->flavor == CIL_MACRO) {
++		*finished = CIL_TREE_SKIP_HEAD;
++	} else if (node->flavor == li->flavor) {
++		if (node->data == li->data) {
++			char *path = cil_tree_get_cil_path(node);
++			cil_log(CIL_WARN, "  at %s:%d\n", path, node->line);
++		}
++	}
++	return SEPOL_OK;
++}
++
++static int __cil_post_process_context_rules(struct cil_sort *sort, int (*compar)(const void *, const void *), int (*concompar)(const void *, const void *), struct cil_db *db, enum cil_flavor flavor, const char *flavor_str)
++{
++	uint32_t count = sort->count;
++	uint32_t i, j = 0, removed = 0;
++	int rc = SEPOL_OK;
++
++	if (count < 2) {
++		return SEPOL_OK;
++	}
++
++	qsort(sort->array, sort->count, sizeof(sort->array), compar);
++
++	for (i=1; i<count; i++) {
++		if (compar(&sort->array[i], &sort->array[j]) != 0) {
++			j++;
++		} else {
++			removed++;
++			if (!db->multiple_decls ||
++			   concompar(&sort->array[i], &sort->array[j]) != 0) {
++				struct cil_list_item li;
++				int rc2;
++				cil_log(CIL_WARN, "Found conflicting %s rules\n",
++					flavor_str);
++				rc = SEPOL_ERR;
++				li.flavor = flavor;
++				li.data = sort->array[i];
++				rc2 = cil_tree_walk(db->ast->root,
++						    __cil_post_report_conflict,
++						    NULL, NULL, &li);
++				if (rc2 != SEPOL_OK) goto exit;
++				li.data = sort->array[j];
++				rc2 = cil_tree_walk(db->ast->root,
++						    __cil_post_report_conflict,
++						    NULL, NULL, &li);
++				if (rc2 != SEPOL_OK) goto exit;
++			}
++		}
++		if (i != j) {
++			sort->array[j] = sort->array[i];
++		}
++	}
++
++	sort->count = count - removed;
++
++exit:
++	return rc;
++}
++
+ static int cil_post_db(struct cil_db *db)
+ {
+ 	int rc = SEPOL_ERR;
+@@ -1975,17 +2208,65 @@ static int cil_post_db(struct cil_db *db
+ 		goto exit;
+ 	}
+ 
+-	qsort(db->netifcon->array, db->netifcon->count, sizeof(db->netifcon->array), cil_post_netifcon_compare);
+-	qsort(db->genfscon->array, db->genfscon->count, sizeof(db->genfscon->array), cil_post_genfscon_compare);
+-	qsort(db->portcon->array, db->portcon->count, sizeof(db->portcon->array), cil_post_portcon_compare);
+-	qsort(db->nodecon->array, db->nodecon->count, sizeof(db->nodecon->array), cil_post_nodecon_compare);
+-	qsort(db->fsuse->array, db->fsuse->count, sizeof(db->fsuse->array), cil_post_fsuse_compare);
+-	qsort(db->filecon->array, db->filecon->count, sizeof(db->filecon->array), cil_post_filecon_compare);
+-	qsort(db->pirqcon->array, db->pirqcon->count, sizeof(db->pirqcon->array), cil_post_pirqcon_compare);
+-	qsort(db->iomemcon->array, db->iomemcon->count, sizeof(db->iomemcon->array), cil_post_iomemcon_compare);
+-	qsort(db->ioportcon->array, db->ioportcon->count, sizeof(db->ioportcon->array), cil_post_ioportcon_compare);
+-	qsort(db->pcidevicecon->array, db->pcidevicecon->count, sizeof(db->pcidevicecon->array), cil_post_pcidevicecon_compare);
+-	qsort(db->devicetreecon->array, db->devicetreecon->count, sizeof(db->devicetreecon->array), cil_post_devicetreecon_compare);
++	rc = __cil_post_process_context_rules(db->netifcon, cil_post_netifcon_compare, cil_post_netifcon_context_compare, db, CIL_NETIFCON, CIL_KEY_NETIFCON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing netifcon rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->genfscon, cil_post_genfscon_compare, cil_post_genfscon_context_compare, db, CIL_GENFSCON, CIL_KEY_GENFSCON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing genfscon rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->portcon, cil_post_portcon_compare, cil_post_portcon_context_compare, db, CIL_PORTCON, CIL_KEY_PORTCON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing portcon rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->nodecon, cil_post_nodecon_compare, cil_post_nodecon_context_compare, db, CIL_NODECON, CIL_KEY_NODECON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing nodecon rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->fsuse, cil_post_fsuse_compare, cil_post_fsuse_context_compare, db, CIL_FSUSE, CIL_KEY_FSUSE);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing fsuse rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->filecon, cil_post_filecon_compare, cil_post_filecon_context_compare, db, CIL_FILECON, CIL_KEY_FILECON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing filecon rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->iomemcon, cil_post_iomemcon_compare, cil_post_iomemcon_context_compare, db, CIL_IOMEMCON, CIL_KEY_IOMEMCON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing iomemcon rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->ioportcon, cil_post_ioportcon_compare, cil_post_ioportcon_context_compare, db, CIL_IOPORTCON, CIL_KEY_IOPORTCON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing ioportcon rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->pcidevicecon, cil_post_pcidevicecon_compare, cil_post_pcidevicecon_context_compare, db, CIL_PCIDEVICECON, CIL_KEY_PCIDEVICECON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing pcidevicecon rules\n");
++		goto exit;
++	}
++
++	rc = __cil_post_process_context_rules(db->devicetreecon, cil_post_devicetreecon_compare, cil_post_devicetreecon_context_compare, db, CIL_DEVICETREECON, CIL_KEY_DEVICETREECON);
++	if (rc != SEPOL_OK) {
++		cil_log(CIL_ERR, "Problems processing devicetreecon rules\n");
++		goto exit;
++	}
+ 
+ exit:
+ 	return rc;
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_reset_ast.c android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_reset_ast.c
+--- android-8.1.0_r65/external/selinux/libsepol/cil/src/cil_reset_ast.c	2026-05-04 20:38:03.479931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/cil/src/cil_reset_ast.c	2026-05-04 20:39:14.455936695 -0400
+@@ -186,6 +186,7 @@ static void cil_reset_typeattr(struct ci
+ 		attr->expr_list = NULL;
+ 	}
+ 	attr->used = CIL_FALSE;
++	attr->keep = CIL_FALSE;
+ }
+ 
+ static void cil_reset_typeattributeset(struct cil_typeattributeset *tas)
+diff -prNu android-8.1.0_r65/external/selinux/libsepol/src/libsepol.map.in android-8.1.0_r65-phh/external/selinux/libsepol/src/libsepol.map.in
+--- android-8.1.0_r65/external/selinux/libsepol/src/libsepol.map.in	2026-05-04 20:38:03.483931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/libsepol/src/libsepol.map.in	2026-05-04 20:39:14.463936696 -0400
+@@ -47,6 +47,7 @@ LIBSEPOL_1.1 {
+ 	cil_set_mls;
+ 	cil_set_attrs_expand_generated;
+ 	cil_set_attrs_expand_size;
++	cil_set_multiple_decls;
+ 	cil_write_policy_conf;
+ 	sepol_ppfile_to_module_package;
+ 	sepol_module_package_to_cil;
+diff -prNu android-8.1.0_r65/external/selinux/secilc/secilc.c android-8.1.0_r65-phh/external/selinux/secilc/secilc.c
+--- android-8.1.0_r65/external/selinux/secilc/secilc.c	2026-05-04 20:38:03.515931645 -0400
++++ android-8.1.0_r65-phh/external/selinux/secilc/secilc.c	2026-05-04 20:39:14.491936699 -0400
+@@ -63,6 +63,7 @@ static __attribute__((__noreturn__)) voi
+ 	printf("                                 statement if present in the policy\n");
+ 	printf("  -D, --disable-dontaudit        do not add dontaudit rules to the binary policy\n");
+ 	printf("  -P, --preserve-tunables        treat tunables as booleans\n");
++	printf("  -m, --multiple-decls           allow some statements to be re-declared\n");
+ 	printf("  -N, --disable-neverallow       do not check neverallow rules\n");
+ 	printf("  -G, --expand-generated         Expand and remove auto-generated attributes\n");
+ 	printf("  -X, --expand-size <SIZE>       Expand type attributes with fewer than <SIZE>\n");
+@@ -89,6 +90,7 @@ int main(int argc, char *argv[])
+ 	int target = SEPOL_TARGET_SELINUX;
+ 	int mls = -1;
+ 	int disable_dontaudit = 0;
++	int multiple_decls = 1;
+ 	int disable_neverallow = 0;
+ 	int preserve_tunables = 0;
+ 	int handle_unknown = -1;
+@@ -99,7 +101,7 @@ int main(int argc, char *argv[])
+ 	int opt_index = 0;
+ 	char *fc_buf = NULL;
+ 	size_t fc_size;
+-	enum cil_log_level log_level = CIL_ERR;
++	enum cil_log_level log_level = CIL_WARN;
+ 	static struct option long_opts[] = {
+ 		{"help", no_argument, 0, 'h'},
+ 		{"verbose", no_argument, 0, 'v'},
+@@ -108,6 +110,7 @@ int main(int argc, char *argv[])
+ 		{"policyversion", required_argument, 0, 'c'},
+ 		{"handle-unknown", required_argument, 0, 'U'},
+ 		{"disable-dontaudit", no_argument, 0, 'D'},
++		{"multiple-decls", no_argument, 0, 'm'},
+ 		{"disable-neverallow", no_argument, 0, 'N'},
+ 		{"preserve-tunables", no_argument, 0, 'P'},
+ 		{"output", required_argument, 0, 'o'},
+@@ -119,7 +122,7 @@ int main(int argc, char *argv[])
+ 	int i;
+ 
+ 	while (1) {
+-		opt_char = getopt_long(argc, argv, "o:f:U:hvt:M:PDNc:GX:", long_opts, &opt_index);
++		opt_char = getopt_long(argc, argv, "o:f:U:hvt:M:PDmNc:GX:", long_opts, &opt_index);
+ 		if (opt_char == -1) {
+ 			break;
+ 		}
+@@ -175,6 +178,9 @@ int main(int argc, char *argv[])
+ 			case 'D':
+ 				disable_dontaudit = 1;
+ 				break;
++			case 'm':
++				multiple_decls = 1;
++				break;
+ 			case 'N':
+ 				disable_neverallow = 1;
+ 				break;
+@@ -223,6 +229,7 @@ int main(int argc, char *argv[])
+ 
+ 	cil_db_init(&db);
+ 	cil_set_disable_dontaudit(db, disable_dontaudit);
++	cil_set_multiple_decls(db, multiple_decls);
+ 	cil_set_disable_neverallow(db, disable_neverallow);
+ 	cil_set_preserve_tunables(db, preserve_tunables);
+ 	if (handle_unknown != -1) {
+diff -prNu android-8.1.0_r65/frameworks/av/media/libstagefright/ACodec.cpp android-8.1.0_r65-phh/frameworks/av/media/libstagefright/ACodec.cpp
+--- android-8.1.0_r65/frameworks/av/media/libstagefright/ACodec.cpp	2026-05-04 20:38:01.419931626 -0400
++++ android-8.1.0_r65-phh/frameworks/av/media/libstagefright/ACodec.cpp	2026-05-04 20:39:14.963936761 -0400
+@@ -4244,9 +4244,8 @@ status_t ACodec::setupAVCEncoderParamete
+     if (msg->findInt32("intra-refresh-mode", &intraRefreshMode)) {
+         err = setCyclicIntraMacroblockRefresh(msg, intraRefreshMode);
+         if (err != OK) {
+-            ALOGE("Setting intra macroblock refresh mode (%d) failed: 0x%x",
+-                    err, intraRefreshMode);
+-            return err;
++            ALOGE("setupAVCEncoderParameters(): set intra-refresh-mode failed, ignoring..");
++            //return err;
+         }
+     }
+ 
+diff -prNu android-8.1.0_r65/frameworks/av/services/audiopolicy/common/managerdefinitions/src/Serializer.cpp android-8.1.0_r65-phh/frameworks/av/services/audiopolicy/common/managerdefinitions/src/Serializer.cpp
+--- android-8.1.0_r65/frameworks/av/services/audiopolicy/common/managerdefinitions/src/Serializer.cpp	2026-05-04 20:38:01.507931627 -0400
++++ android-8.1.0_r65-phh/frameworks/av/services/audiopolicy/common/managerdefinitions/src/Serializer.cpp	2026-05-04 20:39:15.083936776 -0400
+@@ -191,16 +191,25 @@ const char AudioProfileTraits::Attribute
+ const char AudioProfileTraits::Attributes::samplingRates[] = "samplingRates";
+ const char AudioProfileTraits::Attributes::format[] = "format";
+ const char AudioProfileTraits::Attributes::channelMasks[] = "channelMasks";
++static bool fixedEarpieceChannels = false;
+ 
+ status_t AudioProfileTraits::deserialize(_xmlDoc */*doc*/, const _xmlNode *root, PtrElement &profile,
+-                                         PtrSerializingCtx /*serializingContext*/)
++                                         PtrSerializingCtx serializingContext)
+ {
++    bool isOutput = serializingContext != nullptr;
+     string samplingRates = getXmlAttribute(root, Attributes::samplingRates);
+     string format = getXmlAttribute(root, Attributes::format);
+     string channels = getXmlAttribute(root, Attributes::channelMasks);
++    ChannelTraits::Collection channelsMask = channelMasksFromString(channels, ",");
++
++    //Some Foxconn devices have wrong earpiece channel mask, leading to no channel mask
++    if(channelsMask.size() == 1 && channelsMask[0] == AUDIO_CHANNEL_IN_MONO && isOutput) {
++        fixedEarpieceChannels = true;
++        channelsMask = channelMasksFromString("AUDIO_CHANNEL_OUT_MONO", ",");
++    }
+ 
+     profile = new Element(formatFromString(format, gDynamicFormat),
+-                          channelMasksFromString(channels, ","),
++                          channelsMask,
+                           samplingRatesFromString(samplingRates, ","));
+ 
+     profile->setDynamicFormat(profile->getFormat() == gDynamicFormat);
+@@ -316,7 +325,10 @@ status_t DevicePortTraits::deserialize(_
+     }
+ 
+     AudioProfileTraits::Collection profiles;
+-    deserializeCollection<AudioProfileTraits>(doc, root, profiles, NULL);
++    if(audio_is_output_devices(type))
++        deserializeCollection<AudioProfileTraits>(doc, root, profiles, (PtrSerializingCtx)1);
++    else
++        deserializeCollection<AudioProfileTraits>(doc, root, profiles, NULL);
+     if (profiles.isEmpty()) {
+         sp <AudioProfile> dynamicProfile = new AudioProfile(gDynamicFormat,
+                                                             ChannelsVector(), SampleRateVector());
+@@ -481,6 +493,13 @@ status_t ModuleTraits::deserialize(xmlDo
+         }
+         children = children->next;
+     }
++    if(fixedEarpieceChannels) {
++        sp<DeviceDescriptor> device =
++            module->getDeclaredDevices().getDeviceFromTagName(String8("Earpiece"));
++	if(device != 0)
++		ctx->addAvailableDevice(device);
++	fixedEarpieceChannels = false;
++    }
+     return NO_ERROR;
+ }
+ 
+diff -prNu android-8.1.0_r65/frameworks/base/cmds/idmap/scan.cpp android-8.1.0_r65-phh/frameworks/base/cmds/idmap/scan.cpp
+--- android-8.1.0_r65/frameworks/base/cmds/idmap/scan.cpp	2026-05-04 20:38:01.535931626 -0400
++++ android-8.1.0_r65-phh/frameworks/base/cmds/idmap/scan.cpp	2026-05-04 20:39:15.155936786 -0400
+@@ -1,5 +1,6 @@
+ #include <dirent.h>
+ #include <inttypes.h>
++#include <fnmatch.h>
+ #include <sys/file.h>
+ #include <sys/stat.h>
+ 
+@@ -28,6 +29,8 @@ namespace {
+ 
+         bool operator<(Overlay const& rhs) const
+         {
++            if(rhs.priority == priority)
++                return rhs.apk_path > apk_path;
+             return rhs.priority > priority;
+         }
+ 
+@@ -92,6 +95,10 @@ namespace {
+         property_get(prop, propBuf, NULL);
+         val = strndup16to8(value.string(), value.size());
+ 
++	if(val[0]=='+') {
++            return fnmatch(val+1, propBuf, 0) == 0;
++	}
++
+         return (strcmp(propBuf, val) == 0);
+     }
+ 
+diff -prNu android-8.1.0_r65/frameworks/base/core/jni/android_util_AssetManager.cpp android-8.1.0_r65-phh/frameworks/base/core/jni/android_util_AssetManager.cpp
+--- android-8.1.0_r65/frameworks/base/core/jni/android_util_AssetManager.cpp	2026-05-04 20:38:01.707931628 -0400
++++ android-8.1.0_r65-phh/frameworks/base/core/jni/android_util_AssetManager.cpp	2026-05-04 20:39:15.359936812 -0400
+@@ -164,7 +164,7 @@ static void verifySystemIdmaps()
+                 }
+ 
+                 // Generic idmap parameters
+-                const char* argv[8];
++                const char* argv[10];
+                 int argc = 0;
+                 struct stat st;
+ 
+@@ -189,6 +189,14 @@ static void verifySystemIdmaps()
+                     argv[argc++] = AssetManager::OVERLAY_DIR;
+                 }
+ 
++               if (stat("/product/overlay/", &st) == 0) {
++                   argv[argc++] = "/product/overlay";
++               }
++
++               if (stat("/system/overlay/", &st) == 0) {
++                   argv[argc++] = "/system/overlay";
++               }
++
+                 // Finally, invoke idmap (if any overlay directory exists)
+                 if (argc > 5) {
+                     execv(AssetManager::IDMAP_BIN, (char* const*)argv);
+diff -prNu android-8.1.0_r65/frameworks/base/core/jni/fd_utils.cpp android-8.1.0_r65-phh/frameworks/base/core/jni/fd_utils.cpp
+--- android-8.1.0_r65/frameworks/base/core/jni/fd_utils.cpp	2026-05-04 20:38:01.707931628 -0400
++++ android-8.1.0_r65-phh/frameworks/base/core/jni/fd_utils.cpp	2026-05-04 20:39:15.359936812 -0400
+@@ -89,7 +89,9 @@ bool FileDescriptorWhitelist::IsAllowed(
+ 
+   if ((android::base::StartsWith(path, kOverlayDir)
+        || android::base::StartsWith(path, kOverlaySubdir)
+-       || android::base::StartsWith(path, kVendorOverlayDir))
++       || android::base::StartsWith(path, kVendorOverlayDir)
++       || android::base::StartsWith(path, "/product/overlay")
++       || android::base::StartsWith(path, "/system/overlay"))
+       && android::base::EndsWith(path, kApkSuffix)
+       && path.find("/../") == std::string::npos) {
+     return true;
+diff -prNu android-8.1.0_r65/frameworks/base/libs/hwui/renderthread/EglManager.cpp android-8.1.0_r65-phh/frameworks/base/libs/hwui/renderthread/EglManager.cpp
+--- android-8.1.0_r65/frameworks/base/libs/hwui/renderthread/EglManager.cpp	2026-05-04 20:38:02.551931635 -0400
++++ android-8.1.0_r65-phh/frameworks/base/libs/hwui/renderthread/EglManager.cpp	2026-05-04 20:39:24.627938083 -0400
+@@ -223,9 +223,9 @@ void EglManager::loadConfigs() {
+         numConfigs = 1;
+         if (!eglChooseConfig(mEglDisplay, attribs16F, &mEglConfigWideGamut, numConfigs, &numConfigs)
+                 || numConfigs != 1) {
+-            LOG_ALWAYS_FATAL(
+-                    "Device claims wide gamut support, cannot find matching config, error = %s",
++            ALOGE("Device claims wide gamut support, cannot find matching config, error = %s",
+                     eglErrorString());
++            EglExtensions.pixelFormatFloat = false;
+         }
+     }
+ }
+diff -prNu android-8.1.0_r65/frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java android-8.1.0_r65-phh/frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java
+--- android-8.1.0_r65/frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java	2026-05-04 20:38:02.919931639 -0400
++++ android-8.1.0_r65-phh/frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java	2026-05-04 20:39:25.299938180 -0400
+@@ -837,7 +837,10 @@ public class KeyguardUpdateMonitor imple
+ 
+         @Override
+         public void onAuthenticationError(int errMsgId, CharSequence errString) {
+-            handleFingerprintError(errMsgId, errString.toString());
++            if(errString != null)
++                 handleFingerprintError(errMsgId, errString.toString());
++            else
++                 handleFingerprintError(errMsgId, "unknown error");
+         }
+ 
+         @Override
+diff -prNu android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/ConsumerIrService.java android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/ConsumerIrService.java
+--- android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/ConsumerIrService.java	2026-05-04 20:38:03.011931640 -0400
++++ android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/ConsumerIrService.java	2026-05-04 20:39:25.399938195 -0400
+@@ -46,13 +46,6 @@ public class ConsumerIrService extends I
+         mWakeLock.setReferenceCounted(true);
+ 
+         mHasNativeHal = halOpen();
+-        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CONSUMER_IR)) {
+-            if (!mHasNativeHal) {
+-                throw new RuntimeException("FEATURE_CONSUMER_IR present, but no IR HAL loaded!");
+-            }
+-        } else if (mHasNativeHal) {
+-            throw new RuntimeException("IR HAL present, but FEATURE_CONSUMER_IR is not set!");
+-        }
+     }
+ 
+     @Override
+diff -prNu android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/StorageManagerService.java android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/StorageManagerService.java
+--- android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/StorageManagerService.java	2026-05-04 20:38:03.015931640 -0400
++++ android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/StorageManagerService.java	2026-05-04 20:39:25.399938195 -0400
+@@ -1316,7 +1316,8 @@ class StorageManagerService extends ISto
+ 
+             // Adoptable public disks are visible to apps, since they meet
+             // public API requirement of being in a stable location.
+-            if (vol.disk.isAdoptable()) {
++	    // Assume all SDs match this as well
++            if (vol.disk.isAdoptable() || vol.disk.isSd()) {
+                 vol.mountFlags |= VolumeInfo.MOUNT_FLAG_VISIBLE;
+             }
+ 
+diff -prNu android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/display/DisplayPowerController.java android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/display/DisplayPowerController.java
+--- android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/display/DisplayPowerController.java	2026-05-04 20:38:03.019931640 -0400
++++ android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/display/DisplayPowerController.java	2026-05-04 20:39:25.407938196 -0400
+@@ -20,6 +20,7 @@ import android.app.ActivityManager;
+ import com.android.internal.app.IBatteryStats;
+ import com.android.server.LocalServices;
+ import com.android.server.am.BatteryStatsService;
++import com.android.server.lights.LightsManager;
+ 
+ import android.animation.Animator;
+ import android.animation.ObjectAnimator;
+@@ -129,6 +130,9 @@ final class DisplayPowerController imple
+     // Battery stats.
+     private final IBatteryStats mBatteryStats;
+ 
++    // The lights service.
++    private final LightsManager mLights;
++
+     // The sensor manager.
+     private final SensorManager mSensorManager;
+ 
+@@ -300,6 +304,7 @@ final class DisplayPowerController imple
+         mCallbacks = callbacks;
+ 
+         mBatteryStats = BatteryStatsService.getService();
++        mLights = LocalServices.getService(LightsManager.class);
+         mSensorManager = sensorManager;
+         mWindowManagerPolicy = LocalServices.getService(WindowManagerPolicy.class);
+         mBlanker = blanker;
+@@ -678,6 +683,12 @@ final class DisplayPowerController imple
+         // Use zero brightness when screen is off.
+         if (state == Display.STATE_OFF) {
+             brightness = PowerManager.BRIGHTNESS_OFF;
++            mLights.getLight(LightsManager.LIGHT_ID_BUTTONS).setBrightness(brightness);
++        }
++
++        // Disable button lights when dozing
++        if (state == Display.STATE_DOZE || state == Display.STATE_DOZE_SUSPEND) {
++            mLights.getLight(LightsManager.LIGHT_ID_BUTTONS).setBrightness(PowerManager.BRIGHTNESS_OFF);
+         }
+ 
+         // Configure auto-brightness.
+diff -prNu android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/fingerprint/FingerprintService.java android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/fingerprint/FingerprintService.java
+--- android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/fingerprint/FingerprintService.java	2026-05-04 20:38:03.023931639 -0400
++++ android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/fingerprint/FingerprintService.java	2026-05-04 20:39:25.407938196 -0400
+@@ -955,7 +955,11 @@ public class FingerprintService extends
+             mHandler.post(new Runnable() {
+                 @Override
+                 public void run() {
+-                    handleEnrollResult(deviceId, fingerId, groupId, remaining);
++                    int remaining2 = remaining;
++                    String fp = android.os.SystemProperties.get("ro.vendor.build.fingerprint");
++                    if(fp.startsWith("samsung/"))
++                        remaining2 = 100 - remaining2;
++                    handleEnrollResult(deviceId, fingerId, groupId, remaining2);
+                 }
+             });
+         }
+diff -prNu android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/lights/LightsService.java android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/lights/LightsService.java
+--- android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/lights/LightsService.java	2026-05-04 20:38:03.027931640 -0400
++++ android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/lights/LightsService.java	2026-05-04 20:39:25.411938196 -0400
+@@ -21,6 +21,7 @@ import android.app.ActivityManager;
+ import android.content.Context;
+ import android.os.Handler;
+ import android.os.Message;
++import android.os.SystemProperties;
+ import android.os.Trace;
+ import android.provider.Settings;
+ import android.util.Slog;
+@@ -52,6 +53,33 @@ public class LightsService extends Syste
+                     return;
+                 }
+ 
++                if(mId == 0) {
++                    String fp = SystemProperties.get("ro.vendor.build.fingerprint", "hello");
++                    if(fp.matches(".*(crown|star)[q2]*lte.*") ||
++				    fp.matches(".*(SC-0[23]K|SCV3[89]).*")) {
++                        int newBrightness = brightness * 100;
++                        if(SystemProperties.getBoolean("persist.sys.samsung.full_brightness", false)) {
++                            newBrightness = (int) (brightness * 40960.0 / 255.0);
++                        }
++                        setLightLocked(newBrightness, LIGHT_FLASH_HARDWARE, 0, 0, brightnessMode);
++                        return;
++                    }
++
++                    boolean qcomExtendBrightness = SystemProperties.getBoolean("persist.extend.brightness", false);
++                    int scale = SystemProperties.getInt("persist.display.max_brightness", 1023);
++                    //This is set by vndk-detect
++                    int qcomScale = SystemProperties.getInt("persist.sys.qcom-brightness", -1);
++                    if(qcomScale != -1) {
++                        qcomExtendBrightness = true;
++                        scale = qcomScale;
++                    }
++
++                    if(qcomExtendBrightness) {
++                        setLightLocked(brightness * scale / 255, LIGHT_FLASH_NONE, 0, 0, brightnessMode);
++                        return;
++                    }
++                }
++
+                 int color = brightness & 0x000000ff;
+                 color = 0xff000000 | (color << 16) | (color << 8) | color;
+                 setLightLocked(color, LIGHT_FLASH_NONE, 0, 0, brightnessMode);
+diff -prNu android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/power/PowerManagerService.java android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/power/PowerManagerService.java
+--- android-8.1.0_r65/frameworks/base/services/core/java/com/android/server/power/PowerManagerService.java	2026-05-04 20:38:03.035931639 -0400
++++ android-8.1.0_r65-phh/frameworks/base/services/core/java/com/android/server/power/PowerManagerService.java	2026-05-04 20:39:25.443938201 -0400
+@@ -220,6 +220,8 @@ public final class PowerManagerService e
+     private static final int HALT_MODE_REBOOT = 1;
+     private static final int HALT_MODE_REBOOT_SAFE_MODE = 2;
+ 
++    private static final int BUTTON_ON_DURATION = 5 * 1000;
++
+     // File location for last reboot reason
+     private static final String LAST_REBOOT_LOCATION = "/data/misc/reboot/last_reboot_reason";
+ 
+@@ -240,6 +242,7 @@ public final class PowerManagerService e
+     private SettingsObserver mSettingsObserver;
+     private DreamManagerInternal mDreamManager;
+     private Light mAttentionLight;
++    private Light mButtonsLight;
+ 
+     private final Object mLock = LockGuard.installNewLock(LockGuard.INDEX_POWER);
+ 
+@@ -747,6 +750,7 @@ public final class PowerManagerService e
+ 
+             mLightsManager = getLocalService(LightsManager.class);
+             mAttentionLight = mLightsManager.getLight(LightsManager.LIGHT_ID_ATTENTION);
++            mButtonsLight = mLightsManager.getLight(LightsManager.LIGHT_ID_BUTTONS);
+ 
+             // Initialize display power management.
+             mDisplayManagerInternal.initPowerManagement(
+@@ -1943,10 +1947,16 @@ public final class PowerManagerService e
+                 final boolean userInactiveOverride = mUserInactiveOverrideFromWindowManager;
+ 
+                 mUserActivitySummary = 0;
+-                if (mLastUserActivityTime >= mLastWakeTime) {
++                if (mWakefulness == WAKEFULNESS_AWAKE && mLastUserActivityTime >= mLastWakeTime) {
+                     nextTimeout = mLastUserActivityTime
+                             + screenOffTimeout - screenDimDuration;
+                     if (now < nextTimeout) {
++                        if (now > mLastUserActivityTime + BUTTON_ON_DURATION) {
++                            mButtonsLight.setBrightness(0);
++                        } else {
++                            mButtonsLight.setBrightness(mDisplayPowerRequest.screenBrightness);
++                            nextTimeout = now + BUTTON_ON_DURATION;
++                        }
+                         mUserActivitySummary = USER_ACTIVITY_SCREEN_BRIGHT;
+                     } else {
+                         nextTimeout = mLastUserActivityTime + screenOffTimeout;
+diff -prNu android-8.1.0_r65/frameworks/base/services/core/jni/com_android_server_ConsumerIrService.cpp android-8.1.0_r65-phh/frameworks/base/services/core/jni/com_android_server_ConsumerIrService.cpp
+--- android-8.1.0_r65/frameworks/base/services/core/jni/com_android_server_ConsumerIrService.cpp	2026-05-04 20:38:03.047931640 -0400
++++ android-8.1.0_r65-phh/frameworks/base/services/core/jni/com_android_server_ConsumerIrService.cpp	2026-05-04 20:39:25.487938208 -0400
+@@ -36,7 +36,7 @@ static sp<IConsumerIr> mHal;
+ 
+ static jboolean halOpen(JNIEnv* /* env */, jobject /* obj */) {
+     // TODO(b/31632518)
+-    mHal = IConsumerIr::getService();
++    mHal = IConsumerIr::tryGetService();
+     return mHal != nullptr;
+ }
+ 
+diff -prNu android-8.1.0_r65/frameworks/base/telephony/java/android/telephony/CarrierConfigManager.java android-8.1.0_r65-phh/frameworks/base/telephony/java/android/telephony/CarrierConfigManager.java
+--- android-8.1.0_r65/frameworks/base/telephony/java/android/telephony/CarrierConfigManager.java	2026-05-04 20:38:03.075931640 -0400
++++ android-8.1.0_r65-phh/frameworks/base/telephony/java/android/telephony/CarrierConfigManager.java	2026-05-04 20:39:25.591938223 -0400
+@@ -1644,7 +1644,7 @@ public class CarrierConfigManager {
+         sDefaults.putBoolean(KEY_MDN_IS_ADDITIONAL_VOICEMAIL_NUMBER_BOOL, false);
+         sDefaults.putBoolean(KEY_OPERATOR_SELECTION_EXPAND_BOOL, true);
+         sDefaults.putBoolean(KEY_PREFER_2G_BOOL, true);
+-        sDefaults.putBoolean(KEY_SHOW_APN_SETTING_CDMA_BOOL, false);
++        sDefaults.putBoolean(KEY_SHOW_APN_SETTING_CDMA_BOOL, true);
+         sDefaults.putBoolean(KEY_SHOW_CDMA_CHOICES_BOOL, false);
+         sDefaults.putBoolean(KEY_SMS_REQUIRES_DESTINATION_NUMBER_CONVERSION_BOOL, false);
+         sDefaults.putBoolean(KEY_SHOW_ONSCREEN_DIAL_BUTTON_BOOL, true);
+diff -prNu android-8.1.0_r65/frameworks/base/telephony/java/android/telephony/SignalStrength.java android-8.1.0_r65-phh/frameworks/base/telephony/java/android/telephony/SignalStrength.java
+--- android-8.1.0_r65/frameworks/base/telephony/java/android/telephony/SignalStrength.java	2026-05-04 20:38:03.079931641 -0400
++++ android-8.1.0_r65-phh/frameworks/base/telephony/java/android/telephony/SignalStrength.java	2026-05-04 20:39:25.595938223 -0400
+@@ -827,6 +827,7 @@ public class SignalStrength implements P
+          * dB= Number of Resource blocksxRSRP/RSSI SNR = gain=signal/noise ratio
+          * = -10log P1/P2 dB
+          */
++        String method = android.os.SystemProperties.get("persist.sys.signal.level", "default");
+         int rssiIconLevel = SIGNAL_STRENGTH_NONE_OR_UNKNOWN, rsrpIconLevel = -1, snrIconLevel = -1;
+ 
+         int[] threshRsrp = Resources.getSystem().getIntArray(
+@@ -868,6 +869,29 @@ public class SignalStrength implements P
+                 + rsrpIconLevel + " snrIconLevel:" + snrIconLevel
+                 + " lteRsrpBoost:" + mLteRsrpBoost);
+ 
++        /* Valid values are (0-63, 99) as defined in TS 36.331 */
++        if (mLteSignalStrength > 63) rssiIconLevel = SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
++        else if (mLteSignalStrength >= 12) rssiIconLevel = SIGNAL_STRENGTH_GREAT;
++        else if (mLteSignalStrength >= 8) rssiIconLevel = SIGNAL_STRENGTH_GOOD;
++        else if (mLteSignalStrength >= 5) rssiIconLevel = SIGNAL_STRENGTH_MODERATE;
++        else if (mLteSignalStrength >= 0) rssiIconLevel = SIGNAL_STRENGTH_POOR;
++
++        if (DBG) log("getLTELevel - rssi:" + mLteSignalStrength + " rssiIconLevel:"
++                + rssiIconLevel);
++
++        if("rsrp".equals(method)) {
++            if(rsrpIconLevel == -1) rsrpIconLevel = SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
++            return rsrpIconLevel;
++        }
++        if("rssnr".equals(method)) {
++            if(snrIconLevel == -1) snrIconLevel = SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
++            return snrIconLevel;
++        }
++        if("rssi".equals(method)) {
++            if(rssiIconLevel == -1) rssiIconLevel = SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
++            return rssiIconLevel;
++        }
++
+         /* Choose a measurement type to use for notification */
+         if (snrIconLevel != -1 && rsrpIconLevel != -1) {
+             /*
+@@ -882,15 +906,6 @@ public class SignalStrength implements P
+ 
+         if (rsrpIconLevel != -1) return rsrpIconLevel;
+ 
+-        /* Valid values are (0-63, 99) as defined in TS 36.331 */
+-        if (mLteSignalStrength > 63) rssiIconLevel = SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
+-        else if (mLteSignalStrength >= 12) rssiIconLevel = SIGNAL_STRENGTH_GREAT;
+-        else if (mLteSignalStrength >= 8) rssiIconLevel = SIGNAL_STRENGTH_GOOD;
+-        else if (mLteSignalStrength >= 5) rssiIconLevel = SIGNAL_STRENGTH_MODERATE;
+-        else if (mLteSignalStrength >= 0) rssiIconLevel = SIGNAL_STRENGTH_POOR;
+-
+-        if (DBG) log("getLTELevel - rssi:" + mLteSignalStrength + " rssiIconLevel:"
+-                + rssiIconLevel);
+         return rssiIconLevel;
+ 
+     }
+diff -prNu android-8.1.0_r65/frameworks/native/services/surfaceflinger/DisplayDevice.cpp android-8.1.0_r65-phh/frameworks/native/services/surfaceflinger/DisplayDevice.cpp
+--- android-8.1.0_r65/frameworks/native/services/surfaceflinger/DisplayDevice.cpp	2026-05-04 20:38:01.283931624 -0400
++++ android-8.1.0_r65-phh/frameworks/native/services/surfaceflinger/DisplayDevice.cpp	2026-05-04 20:39:14.791936738 -0400
+@@ -574,6 +574,15 @@ void DisplayDevice::setProjection(int or
+     TL.set(-src_x, -src_y);
+     TP.set(dst_x, dst_y);
+ 
++    // need to take care of HW rotation for mGlobalTransform
++    // for case if the panel is not installed align with device orientation
++    if (mType == DisplayType::DISPLAY_PRIMARY) {
++        int hw_orient = mFlinger->getHwOrientation();
++        DisplayDevice::orientationToTransfrom(
++                (orientation + hw_orient) % (DisplayState::eOrientation270 + 1),
++                w, h, &R);
++    }
++
+     // The viewport and frame are both in the logical orientation.
+     // Apply the logical translation, scale to physical size, apply the
+     // physical translation and finally rotate to the physical orientation.
+diff -prNu android-8.1.0_r65/frameworks/native/services/surfaceflinger/Layer.cpp android-8.1.0_r65-phh/frameworks/native/services/surfaceflinger/Layer.cpp
+--- android-8.1.0_r65/frameworks/native/services/surfaceflinger/Layer.cpp	2026-05-04 20:38:01.283931624 -0400
++++ android-8.1.0_r65-phh/frameworks/native/services/surfaceflinger/Layer.cpp	2026-05-04 20:39:14.791936738 -0400
+@@ -871,7 +871,40 @@ void Layer::setPerFrameData(const sp<con
+         visible.dump(LOG_TAG);
+     }
+ 
+-    error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
++    if(mFlinger->mDamageUsesScreenReference) {
++	    const Rect& frame = hwcInfo.displayFrame;
++	    int32_t left = frame.left;
++	    int32_t top = frame.top;
++	    int32_t right = frame.right;
++	    int32_t bottom = frame.bottom;
++	    if(surfaceDamageRegion.getBounds() == Rect::INVALID_RECT) {
++		    auto fullSource = Region(Rect(left, top, right, bottom));
++		    error = hwcLayer->setSurfaceDamage(fullSource);
++	    } else {
++		    //There is no easy way to scale, so just scale the bounds
++		    const Rect& preDamageRect = surfaceDamageRegion.bounds();
++		    const FloatRect& crop = hwcInfo.sourceCrop;
++
++		    float frameWidth = right - left;
++		    float frameHeight = bottom - top;
++
++		    float cropWidth = crop.right - crop.left;
++		    float cropHeight = crop.bottom - crop.top;
++
++		    float wFactor = frameWidth / cropWidth;
++		    float hFactor = frameHeight / cropHeight;
++
++		    Rect scaledDamageRect = Rect(
++				    (int)(preDamageRect.left * wFactor),
++				    (int)(preDamageRect.top * hFactor),
++				    (int)(preDamageRect.right * wFactor),
++				    (int)(preDamageRect.bottom * hFactor));
++		    Region realDamage = Region(scaledDamageRect).translate(frame.left, frame.top);
++		    error = hwcLayer->setSurfaceDamage(realDamage);
++	    }
++    } else {
++	    error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
++    }
+     if (error != HWC2::Error::None) {
+         ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
+                 to_string(error).c_str(), static_cast<int32_t>(error));
+diff -prNu android-8.1.0_r65/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp android-8.1.0_r65-phh/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp
+--- android-8.1.0_r65/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp	2026-05-04 20:38:01.283931624 -0400
++++ android-8.1.0_r65-phh/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp	2026-05-04 20:39:14.791936738 -0400
+@@ -243,10 +243,20 @@ SurfaceFlinger::SurfaceFlinger()
+     mLayerTripleBufferingDisabled = atoi(value);
+     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
+ 
++    int32_t hwrotation = property_get_int32("ro.sf.hwrotation", 0);
++    mHwOrientation = hwrotation / 90;
++
+     // We should be reading 'persist.sys.sf.color_saturation' here
+     // but since /data may be encrypted, we need to wait until after vold
+     // comes online to attempt to read the property. The property is
+     // instead read after the boot animation
++    property_get("ro.hardware", value, "");
++    if(strstr(value, "hi3660")||
++		    strstr(value, "hi6250") ||
++		    strstr(value, "hi3670") ||
++		    strstr(value, "kirin970")) {
++	    mDamageUsesScreenReference = true;
++    }
+ }
+ 
+ void SurfaceFlinger::onFirstRef()
+@@ -818,6 +828,11 @@ status_t SurfaceFlinger::getDisplayConfi
+         // All non-virtual displays are currently considered secure.
+         info.secure = true;
+ 
++        if (DisplayDevice::DISPLAY_PRIMARY == type &&
++            mHwOrientation & DisplayState::eOrientationSwapMask) {
++            std::swap(info.w, info.h);
++        }
++
+         configs->push_back(info);
+     }
+ 
+@@ -4153,11 +4168,16 @@ void SurfaceFlinger::repaintEverything()
+ // if they are set to 0
+ static status_t updateDimensionsLocked(const sp<const DisplayDevice>& displayDevice,
+                                        Transform::orientation_flags rotation,
+-                                       uint32_t* requestedWidth, uint32_t* requestedHeight) {
++                                       uint32_t* requestedWidth, uint32_t* requestedHeight,
++                                       int hwOrientation) {
+     // get screen geometry
+     uint32_t displayWidth = displayDevice->getWidth();
+     uint32_t displayHeight = displayDevice->getHeight();
+ 
++    if (hwOrientation & DisplayState::eOrientationSwapMask) {
++        std::swap(displayWidth, displayHeight);
++    }
++
+     if (rotation & Transform::ROT_90) {
+         std::swap(displayWidth, displayHeight);
+     }
+@@ -4267,7 +4287,7 @@ status_t SurfaceFlinger::captureScreen(c
+     { // Autolock scope
+         Mutex::Autolock lock(mStateLock);
+         sp<const DisplayDevice> displayDevice(getDisplayDeviceLocked(display));
+-        updateDimensionsLocked(displayDevice, rotationFlags, &reqWidth, &reqHeight);
++        updateDimensionsLocked(displayDevice, rotationFlags, &reqWidth, &reqHeight, mHwOrientation);
+     }
+ 
+     // create a surface (because we're a producer, and we need to
+@@ -4377,6 +4397,23 @@ void SurfaceFlinger::renderScreenImplLoc
+             !sourceCrop.isValid()) {
+         sourceCrop.setLeftTop(Point(0, 0));
+         sourceCrop.setRightBottom(Point(hw_w, hw_h));
++    } else if (hw->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY &&
++            mHwOrientation != DisplayState::eOrientationDefault) {
++        Transform tr;
++        uint32_t flags = 0x00;
++        switch (mHwOrientation) {
++            case DisplayState::eOrientation90:
++                flags = Transform::ROT_90;
++                break;
++            case DisplayState::eOrientation180:
++                flags = Transform::ROT_180;
++                break;
++            case DisplayState::eOrientation270:
++                flags = Transform::ROT_270;
++                break;
++        }
++        tr.set(flags, hw->getWidth(), hw->getHeight());
++        sourceCrop = tr.transform(sourceCrop);
+     }
+ 
+     // ensure that sourceCrop is inside screen
+@@ -4401,6 +4438,37 @@ void SurfaceFlinger::renderScreenImplLoc
+     // make sure to clear all GL error flags
+     engine.checkErrors();
+ 
++    if (hw->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY &&
++        mHwOrientation != DisplayState::eOrientationDefault) {
++        // convert hw orientation into flag presentation
++        // here inverse transform needed
++        uint8_t hw_rot_90  = 0x00;
++        uint8_t hw_flip_hv = 0x00;
++        switch (mHwOrientation) {
++            case DisplayState::eOrientation90:
++                hw_rot_90 = Transform::ROT_90;
++                hw_flip_hv = Transform::ROT_180;
++                break;
++            case DisplayState::eOrientation180:
++                hw_flip_hv = Transform::ROT_180;
++                break;
++            case DisplayState::eOrientation270:
++                hw_rot_90  = Transform::ROT_90;
++                break;
++        }
++
++        // transform flags operation
++        // 1) flip H V if both have ROT_90 flag
++        // 2) XOR these flags
++        uint8_t rotation_rot_90  = rotation & Transform::ROT_90;
++        uint8_t rotation_flip_hv = rotation & Transform::ROT_180;
++        if (rotation_rot_90 & hw_rot_90) {
++            rotation_flip_hv = (~rotation_flip_hv) & Transform::ROT_180;
++        }
++        rotation = static_cast<Transform::orientation_flags>
++                   ((rotation_rot_90 ^ hw_rot_90) | (rotation_flip_hv ^ hw_flip_hv));
++    }
++
+     // set-up our viewport
+     engine.setViewportAndProjection(
+         reqWidth, reqHeight, sourceCrop, hw_h, yswap, rotation);
+diff -prNu android-8.1.0_r65/frameworks/native/services/surfaceflinger/SurfaceFlinger.h android-8.1.0_r65-phh/frameworks/native/services/surfaceflinger/SurfaceFlinger.h
+--- android-8.1.0_r65/frameworks/native/services/surfaceflinger/SurfaceFlinger.h	2026-05-04 20:38:01.283931624 -0400
++++ android-8.1.0_r65-phh/frameworks/native/services/surfaceflinger/SurfaceFlinger.h	2026-05-04 20:39:14.791936738 -0400
+@@ -727,6 +727,9 @@ private:
+     // Restrict layers to use two buffers in their bufferqueues.
+     bool mLayerTripleBufferingDisabled = false;
+ 
++    bool mDamageUsesScreenReference;
++
++
+     // these are thread safe
+     mutable MessageQueue mEventQueue;
+     FrameTracker mAnimFrameTracker;
+@@ -818,6 +821,12 @@ private:
+ 
+     float mSaturation = 1.0f;
+     bool mForceNativeColorMode = false;
++
++public:
++    int getHwOrientation() { return mHwOrientation; }
++private:
++    // for phyical panel orientation info
++    int mHwOrientation;
+ };
+ }; // namespace android
+ 
+diff -prNu android-8.1.0_r65/frameworks/opt/telephony/Android.mk android-8.1.0_r65-phh/frameworks/opt/telephony/Android.mk
+--- android-8.1.0_r65/frameworks/opt/telephony/Android.mk	2026-05-04 20:38:01.191931624 -0400
++++ android-8.1.0_r65-phh/frameworks/opt/telephony/Android.mk	2026-05-04 20:39:14.695936726 -0400
+@@ -29,6 +29,8 @@ LOCAL_JAVA_LIBRARIES := voip-common ims-
+ LOCAL_STATIC_JAVA_LIBRARIES := android.hardware.radio-V1.1-java-static \
+     android.hardware.radio.deprecated-V1.0-java-static
+ 
++LOCAL_STATIC_JAVA_LIBRARIES += vendor.mediatek.hardware.radio-V2.0-java-static
++
+ LOCAL_MODULE_TAGS := optional
+ LOCAL_MODULE := telephony-common
+ LOCAL_PROTOC_OPTIMIZE_TYPE := nano
+diff -prNu android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/GsmCdmaPhone.java android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/GsmCdmaPhone.java
+--- android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/GsmCdmaPhone.java	2026-05-04 20:38:01.195931625 -0400
++++ android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/GsmCdmaPhone.java	2026-05-04 20:39:14.699936727 -0400
+@@ -2043,7 +2043,11 @@ public class GsmCdmaPhone extends Phone
+             // Complete pending USSD
+ 
+             if (isUssdRelease) {
+-                found.onUssdRelease();
++                if (SystemProperties.getBoolean("persist.sys.radio.ussd.fix", false)) {
++                    found.onUssdFinished(ussdMessage, isUssdRequest);
++                } else {
++                    found.onUssdRelease();
++                }
+             } else if (isUssdError) {
+                 found.onUssdFinishedError();
+             } else {
+diff -prNu android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/MtkRadioIndication.java android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/MtkRadioIndication.java
+--- android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/MtkRadioIndication.java	1969-12-31 19:00:00.000000000 -0500
++++ android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/MtkRadioIndication.java	2026-05-04 20:39:14.699936727 -0400
+@@ -0,0 +1,481 @@
++package com.android.internal.telephony;
++
++import android.hardware.radio.V1_0.SetupDataCallResult;
++
++import java.util.ArrayList;
++
++import vendor.mediatek.hardware.radio.V2_0.IRadioIndication;
++import vendor.mediatek.hardware.radio.V2_0.IncomingCallNotification;
++import vendor.mediatek.hardware.radio.V2_0.MtkSetupDataCallResult;
++
++public class MtkRadioIndication extends IRadioIndication.Stub {
++    RIL mRil;
++    RadioIndication mIndication;
++
++    MtkRadioIndication(RIL ril, RadioIndication indication) {
++        mRil = ril;
++        mIndication = indication;
++    }
++
++    //++ Radio V1_0
++    public void radioStateChanged(int type, int radioState) {
++        mIndication.radioStateChanged(type, radioState);
++    }
++
++    public void callStateChanged(int type) {
++        mIndication.callStateChanged(type);
++    }
++
++    public void networkStateChanged(int type) {
++        mIndication.networkStateChanged(type);
++    }
++
++    public void newSms(int type, ArrayList<Byte> pdu) {
++        mIndication.newSms(type, pdu);
++    }
++
++    public void newSmsStatusReport(int type, ArrayList<Byte> pdu) {
++        mIndication.newSmsStatusReport(type, pdu);
++    }
++
++    public void newSmsOnSim(int type, int recordNumber) {
++        mIndication.newSmsOnSim(type, recordNumber);
++    }
++
++    public void onUssd(int type, int modeType, String msg) {
++        mIndication.onUssd(type, modeType, msg);
++    }
++
++    public void nitzTimeReceived(int type, String nitzTime, long receivedTime) {
++        mIndication.nitzTimeReceived(type, nitzTime, receivedTime);
++    }
++
++    public void currentSignalStrength(int type, android.hardware.radio.V1_0.SignalStrength signalStrength) {
++        mIndication.currentSignalStrength(type, signalStrength);
++    }
++
++    public void dataCallListChanged(int type, ArrayList<SetupDataCallResult> dcList) {
++        mIndication.dataCallListChanged(type, dcList);
++    }
++
++    public void suppSvcNotify(int type, android.hardware.radio.V1_0.SuppSvcNotification suppSvc) {
++        mIndication.suppSvcNotify(type, suppSvc);
++    }
++
++    public void stkSessionEnd(int type) {
++        mIndication.stkSessionEnd(type);
++    }
++
++    public void stkProactiveCommand(int type, String cmd) {
++        mIndication.stkProactiveCommand(type, cmd);
++    }
++
++    public void stkEventNotify(int type, String cmd) {
++        mIndication.stkEventNotify(type, cmd);
++    }
++
++    public void stkCallSetup(int type, long timeout) {
++        mIndication.stkCallSetup(type, timeout);
++    }
++
++    public void simSmsStorageFull(int type) {
++        mIndication.simSmsStorageFull(type);
++    }
++
++    public void simRefresh(int type, android.hardware.radio.V1_0.SimRefreshResult refreshResult) {
++        mIndication.simRefresh(type, refreshResult);
++    }
++
++    public void callRing(int type, boolean isGsm, android.hardware.radio.V1_0.CdmaSignalInfoRecord record) {
++        mIndication.callRing(type, isGsm, record);
++    }
++
++    public void simStatusChanged(int type) {
++        mIndication.simStatusChanged(type);
++    }
++
++    public void cdmaNewSms(int type, android.hardware.radio.V1_0.CdmaSmsMessage msg) {
++        mIndication.cdmaNewSms(type, msg);
++    }
++
++    public void newBroadcastSms(int type, ArrayList<Byte> data) {
++        mIndication.newBroadcastSms(type, data);
++    }
++
++    public void cdmaRuimSmsStorageFull(int type) {
++        mIndication.cdmaRuimSmsStorageFull(type);
++    }
++
++    public void restrictedStateChanged(int type, int state) {
++        mIndication.restrictedStateChanged(type, state);
++    }
++
++    public void enterEmergencyCallbackMode(int type) {
++        mIndication.enterEmergencyCallbackMode(type);
++    }
++
++    public void cdmaCallWaiting(int type, android.hardware.radio.V1_0.CdmaCallWaiting callWaitingRecord) {
++        mIndication.cdmaCallWaiting(type, callWaitingRecord);
++    }
++
++    public void cdmaOtaProvisionStatus(int type, int status) {
++        mIndication.cdmaOtaProvisionStatus(type, status);
++    }
++
++    public void cdmaInfoRec(int type, android.hardware.radio.V1_0.CdmaInformationRecords records) {
++        mIndication.cdmaInfoRec(type, records);
++    }
++
++    public void indicateRingbackTone(int type, boolean start) {
++        mIndication.indicateRingbackTone(type, start);
++    }
++
++    public void resendIncallMute(int type) {
++        mIndication.resendIncallMute(type);
++    }
++
++    public void cdmaSubscriptionSourceChanged(int type, int cdmaSource) {
++        mIndication.cdmaSubscriptionSourceChanged(type, cdmaSource);
++    }
++
++    public void cdmaPrlChanged(int type, int version) {
++        mIndication.cdmaPrlChanged(type, version);
++    }
++
++    public void exitEmergencyCallbackMode(int type) {
++        mIndication.exitEmergencyCallbackMode(type);
++    }
++
++    public void rilConnected(int type) {
++        mIndication.rilConnected(type);
++    }
++
++    public void voiceRadioTechChanged(int type, int rat) {
++        mIndication.voiceRadioTechChanged(type, rat);
++    }
++
++    public void cellInfoList(int type, ArrayList<android.hardware.radio.V1_0.CellInfo> records) {
++        mIndication.cellInfoList(type, records);
++    }
++
++    public void imsNetworkStateChanged(int type) {
++        mIndication.imsNetworkStateChanged(type);
++    }
++
++    public void subscriptionStatusChanged(int type, boolean activate) {
++        mIndication.subscriptionStatusChanged(type, activate);
++    }
++
++    public void srvccStateNotify(int type, int state) {
++        mIndication.srvccStateNotify(type, state);
++    }
++
++    public void hardwareConfigChanged(int type, ArrayList<android.hardware.radio.V1_0.HardwareConfig> configs) {
++        mIndication.hardwareConfigChanged(type, configs);
++    }
++
++    public void radioCapabilityIndication(int type, android.hardware.radio.V1_0.RadioCapability rc) {
++        mIndication.radioCapabilityIndication(type, rc);
++    }
++
++    public void onSupplementaryServiceIndication(int type, android.hardware.radio.V1_0.StkCcUnsolSsResult ss) {
++        mIndication.onSupplementaryServiceIndication(type, ss);
++    }
++
++    public void stkCallControlAlphaNotify(int type, String alpha) {
++        mIndication.stkCallControlAlphaNotify(type, alpha);
++    }
++
++    public void lceData(int type, android.hardware.radio.V1_0.LceDataInfo lce) {
++        mIndication.lceData(type, lce);
++    }
++
++    public void pcoData(int type, android.hardware.radio.V1_0.PcoDataInfo pco) {
++        mIndication.pcoData(type, pco);
++    }
++
++    public void modemReset(int type, String reason) {
++        mIndication.modemReset(type, reason);
++    }
++    //-- Radio V1_0
++
++    //++ Radio V1_1
++    public void carrierInfoForImsiEncryption(int type) {
++        mIndication.carrierInfoForImsiEncryption(type);
++    }
++
++    public void networkScanResult(int type, android.hardware.radio.V1_1.NetworkScanResult result) {
++        mIndication.networkScanResult(type, result);
++    }
++
++    public void keepaliveStatus(int type, android.hardware.radio.V1_1.KeepaliveStatus status) {
++        mIndication.keepaliveStatus(type, status);
++    }
++
++    //-- Radio V1_1
++
++    //++ MTK Radio V2_0
++    public void incomingCallIndication(int indicationType, IncomingCallNotification notification) {
++        mRil.processIndication(indicationType);
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< incomingCallIndication");
++        mRil.setCallIndication(
++            Integer.parseInt(notification.callId), Integer.parseInt(notification.seqNo));
++    }
++
++    public void cipherIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< cipherIndication not implemented");
++    }
++
++    public void crssIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< crssIndication not implemented");
++    }
++
++    public void vtStatusInfoIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< vtStatusInfoIndication not implemented");
++    }
++
++    public void speechCodecInfoIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< speechCodecInfoIndication not implemented");
++    }
++
++    public void cdmaCallAccepted() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< cdmaCallAccepted not implemented");
++    }
++
++    public void onVirtualSimOn() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onVirtualSimOn not implemented");
++    }
++
++    public void onVirtualSimOff() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onVirtualSimOff not implemented");
++    }
++
++    public void onImeiLock() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onImeiLock not implemented");
++    }
++
++    public void onImsiRefreshDone() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onImsiRefreshDone not implemented");
++    }
++
++    public void newEtwsInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< newEtwsInd not implemented");
++    }
++
++    public void meSmsStorageFullInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< meSmsStorageFullInd not implemented");
++    }
++
++    public void smsReadyInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< smsReadyInd not implemented");
++    }
++
++    public void dataCallListChangedEx(int indicationType,
++        ArrayList<MtkSetupDataCallResult> mtkDcList) {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< dataCallListChangedEx");
++        ArrayList<SetupDataCallResult> dcList = new java.util.ArrayList<SetupDataCallResult>();
++        mtkDcList.forEach(entry -> dcList.add(entry.dcr));
++        mIndication.dataCallListChanged(indicationType, dcList);
++    }
++
++    public void responseCsNetworkStateChangeInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< responseCsNetworkStateChangeInd not implemented");
++    }
++
++    public void eMBMSAtInfoIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< eMBMSAtInfoIndication not implemented");
++    }
++
++    public void eMBMSSessionStatusIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< eMBMSSessionStatusIndication not implemented");
++    }
++
++    public void responsePsNetworkStateChangeInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< responsePsNetworkStateChangeInd not implemented");
++    }
++
++    public void responseInvalidSimInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< responseInvalidSimInd not implemented");
++    }
++
++    public void responseNetworkEventInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< responseNetworkEventInd not implemented");
++    }
++
++    public void responseModulationInfoInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< responseModulationInfoInd not implemented");
++    }
++
++    public void dataAllowedNotification() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< dataAllowedNotification not implemented");
++    }
++
++    public void onPseudoCellInfoInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onPseudoCellInfoInd not implemented");
++    }
++
++    public void plmnChangedIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< plmnChangedIndication not implemented");
++    }
++
++    public void registrationSuspendedIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< registrationSuspendedIndication not implemented");
++    }
++
++    public void gmssRatChangedIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< gmssRatChangedIndication not implemented");
++    }
++
++    public void worldModeChangedIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< worldModeChangedIndication not implemented");
++    }
++
++    public void resetAttachApnInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< resetAttachApnInd not implemented");
++    }
++
++    public void mdChangedApnInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< mdChangedApnInd not implemented");
++    }
++
++    public void esnMeidChangeInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< esnMeidChangeInd not implemented");
++    }
++
++    public void responseFemtocellInfo() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< responseFemtocellInfo not implemented");
++    }
++
++    public void phbReadyNotification() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< phbReadyNotification not implemented");
++    }
++
++    public void bipProactiveCommand() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< bipProactiveCommand not implemented");
++    }
++
++    public void triggerOtaSP() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< triggerOtaSP not implemented");
++    }
++
++    public void onStkMenuReset() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onStkMenuReset not implemented");
++    }
++
++    public void onMdDataRetryCountReset() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onMdDataRetryCountReset not implemented");
++    }
++
++    public void onRemoveRestrictEutran() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onRemoveRestrictEutran not implemented");
++    }
++
++    public void onPcoStatus() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onPcoStatus not implemented");
++    }
++
++    public void onLteAccessStratumStateChanged() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onLteAccessStratumStateChanged not implemented");
++    }
++
++    public void onSimPlugIn() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onSimPlugIn not implemented");
++    }
++
++    public void onSimPlugOut() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onSimPlugOut not implemented");
++    }
++
++    public void onSimMissing() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onSimMissing not implemented");
++    }
++
++    public void onSimRecovery() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onSimRecovery not implemented");
++    }
++
++    public void onSimTrayPlugIn() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onSimTrayPlugIn not implemented");
++    }
++
++    public void onSimCommonSlotNoChanged() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onSimCommonSlotNoChanged not implemented");
++    }
++
++    public void onSimMeLockEvent() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onSimMeLockEvent not implemented");
++    }
++
++    public void networkInfoInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< networkInfoInd not implemented");
++    }
++
++    public void cfuStatusNotify() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< cfuStatusNotify not implemented");
++    }
++
++    public void pcoDataAfterAttached() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< pcoDataAfterAttached not implemented");
++    }
++
++    public void confSRVCC() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< confSRVCC not implemented");
++    }
++
++    public void onVsimEventIndication() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onVsimEventIndication not implemented");
++    }
++
++    public void volteLteConnectionStatus() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< volteLteConnectionStatus not implemented");
++    }
++
++    public void dedicatedBearerActivationInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< dedicatedBearerActivationInd not implemented");
++    }
++
++    public void dedicatedBearerModificationInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< dedicatedBearerModificationInd not implemented");
++    }
++
++    public void dedicatedBearerDeactivationInd() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< dedicatedBearerDeactivationInd not implemented");
++    }
++
++    public void onWifiMonitoringThreshouldChanged() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onWifiMonitoringThreshouldChanged not implemented");
++    }
++
++    public void onWifiPdnActivate() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onWifiPdnActivate not implemented");
++    }
++
++    public void onWfcPdnError() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onWfcPdnError not implemented");
++    }
++
++    public void onPdnHandover() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onPdnHandover not implemented");
++    }
++
++    public void onWifiRoveout() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onWifiRoveout not implemented");
++    }
++
++    public void onLocationRequest() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onLocationRequest not implemented");
++    }
++
++    public void onWfcPdnStateChanged() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onWfcPdnStateChanged not implemented");
++    }
++
++    public void onNattKeepAliveChanged() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< onNattKeepAliveChanged not implemented");
++    }
++
++    public void oemHookRaw() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[UNSL][MTK]< oemHookRaw not implemented");
++    }
++    //-- MTK Radio V2_0
++}
+diff -prNu android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/MtkRadioResponse.java android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/MtkRadioResponse.java
+--- android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/MtkRadioResponse.java	1969-12-31 19:00:00.000000000 -0500
++++ android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/MtkRadioResponse.java	2026-05-04 20:39:14.699936727 -0400
+@@ -0,0 +1,984 @@
++package com.android.internal.telephony;
++
++import android.hardware.radio.V1_0.ActivityStatsInfo;
++import android.hardware.radio.V1_0.CallForwardInfo;
++import android.hardware.radio.V1_0.Call;
++import android.hardware.radio.V1_0.CardStatus;
++import android.hardware.radio.V1_0.CarrierRestrictions;
++import android.hardware.radio.V1_0.CdmaBroadcastSmsConfigInfo;
++import android.hardware.radio.V1_0.CellInfo;
++import android.hardware.radio.V1_0.DataRegStateResult;
++import android.hardware.radio.V1_0.HardwareConfig;
++import android.hardware.radio.V1_0.IccIoResult;
++import android.hardware.radio.V1_0.GsmBroadcastSmsConfigInfo;
++import android.hardware.radio.V1_0.LastCallFailCauseInfo;
++import android.hardware.radio.V1_0.LceDataInfo;
++import android.hardware.radio.V1_0.LceStatusInfo;
++import android.hardware.radio.V1_0.NeighboringCell;
++import android.hardware.radio.V1_0.OperatorInfo;
++import android.hardware.radio.V1_0.RadioCapability;
++import android.hardware.radio.V1_0.RadioResponseInfo;
++import android.hardware.radio.V1_0.SendSmsResult;
++import android.hardware.radio.V1_0.SetupDataCallResult;
++import android.hardware.radio.V1_0.SignalStrength;
++import android.hardware.radio.V1_0.VoiceRegStateResult;
++import android.hardware.radio.V1_1.KeepaliveStatus;
++
++import java.util.ArrayList;
++
++import vendor.mediatek.hardware.radio.V2_0.IRadioResponse;
++import vendor.mediatek.hardware.radio.V2_0.MtkSetupDataCallResult;
++
++public class MtkRadioResponse extends IRadioResponse.Stub {
++    RIL mRil;
++    RadioResponse mResponse;
++
++    MtkRadioResponse(RIL ril, RadioResponse response) {
++      mRil = ril;
++        mResponse = response;
++    }
++
++    //++ Radio V1_0
++    public void getIccCardStatusResponse(RadioResponseInfo info, CardStatus cardStatus) {
++        mResponse.getIccCardStatusResponse(info, cardStatus);
++    }
++    public void supplyIccPinForAppResponse(RadioResponseInfo info, int remainingRetries) {
++        mResponse.supplyIccPinForAppResponse(info, remainingRetries);
++    }
++
++    public void supplyIccPukForAppResponse(RadioResponseInfo info, int remainingRetries) {
++        mResponse.supplyIccPukForAppResponse(info, remainingRetries);
++    }
++
++    public void supplyIccPin2ForAppResponse(RadioResponseInfo info, int remainingRetries) {
++        mResponse.supplyIccPin2ForAppResponse(info, remainingRetries);
++    }
++
++    public void supplyIccPuk2ForAppResponse(RadioResponseInfo info, int remainingRetries) {
++        mResponse.supplyIccPuk2ForAppResponse(info, remainingRetries);
++    }
++
++    public void changeIccPinForAppResponse(RadioResponseInfo info, int remainingRetries) {
++        mResponse.changeIccPinForAppResponse(info, remainingRetries);
++    }
++
++    public void changeIccPin2ForAppResponse(RadioResponseInfo info, int remainingRetries) {
++        mResponse.changeIccPin2ForAppResponse(info, remainingRetries);
++    }
++
++    public void supplyNetworkDepersonalizationResponse(RadioResponseInfo info, int remainingRetries) {
++        mResponse.supplyNetworkDepersonalizationResponse(info, remainingRetries);
++    }
++
++    public void getCurrentCallsResponse(RadioResponseInfo info, ArrayList<Call> calls) {
++        mResponse.getCurrentCallsResponse(info, calls);
++    }
++
++    public void dialResponse(RadioResponseInfo info) {
++        mResponse.dialResponse(info);
++    }
++
++    public void getIMSIForAppResponse(RadioResponseInfo info, String imsi) {
++        mResponse.getIMSIForAppResponse(info, imsi);
++    }
++
++    public void hangupConnectionResponse(RadioResponseInfo info) {
++        mResponse.hangupConnectionResponse(info);
++    }
++
++    public void hangupWaitingOrBackgroundResponse(RadioResponseInfo info) {
++        mResponse.hangupWaitingOrBackgroundResponse(info);
++    }
++
++    public void hangupForegroundResumeBackgroundResponse(RadioResponseInfo info) {
++        mResponse.hangupForegroundResumeBackgroundResponse(info);
++    }
++
++    public void switchWaitingOrHoldingAndActiveResponse(RadioResponseInfo info) {
++        mResponse.switchWaitingOrHoldingAndActiveResponse(info);
++    }
++
++    public void conferenceResponse(RadioResponseInfo info) {
++        mResponse.conferenceResponse(info);
++    }
++
++    public void rejectCallResponse(RadioResponseInfo info) {
++        mResponse.rejectCallResponse(info);
++    }
++
++    public void getLastCallFailCauseResponse(RadioResponseInfo info, LastCallFailCauseInfo failCauseinfo) {
++        mResponse.getLastCallFailCauseResponse(info, failCauseinfo);
++    }
++
++    public void getSignalStrengthResponse(RadioResponseInfo info, SignalStrength sigStrength) {
++        mResponse.getSignalStrengthResponse(info, sigStrength);
++    }
++
++    public void getVoiceRegistrationStateResponse(RadioResponseInfo info, VoiceRegStateResult voiceRegResponse) {
++        mResponse.getVoiceRegistrationStateResponse(info, voiceRegResponse);
++    }
++
++    public void getDataRegistrationStateResponse(RadioResponseInfo info, DataRegStateResult dataRegResponse) {
++        mResponse.getDataRegistrationStateResponse(info, dataRegResponse);
++    }
++
++    public void getOperatorResponse(RadioResponseInfo info, String longName, String shortName, String numeric) {
++        mResponse.getOperatorResponse(info, longName, shortName, numeric);
++    }
++
++    public void setRadioPowerResponse(RadioResponseInfo info) {
++        mResponse.setRadioPowerResponse(info);
++    }
++
++    public void sendDtmfResponse(RadioResponseInfo info) {
++        mResponse.sendDtmfResponse(info);
++    }
++
++    public void sendSmsResponse(RadioResponseInfo info, SendSmsResult sms) {
++        mResponse.sendSmsResponse(info, sms);
++    }
++
++    public void sendSMSExpectMoreResponse(RadioResponseInfo info, SendSmsResult sms) {
++        mResponse.sendSMSExpectMoreResponse(info, sms);
++    }
++
++    public void setupDataCallResponse(RadioResponseInfo info, SetupDataCallResult dcResponse) {
++        mResponse.setupDataCallResponse(info, dcResponse);
++    }
++
++    public void iccIOForAppResponse(RadioResponseInfo info, IccIoResult iccIo) {
++        mResponse.iccIOForAppResponse(info, iccIo);
++    }
++
++    public void sendUssdResponse(RadioResponseInfo info) {
++        mResponse.sendUssdResponse(info);
++    }
++
++    public void cancelPendingUssdResponse(RadioResponseInfo info) {
++        mResponse.cancelPendingUssdResponse(info);
++    }
++
++    public void getClirResponse(RadioResponseInfo info, int n, int m) {
++        mResponse.getClirResponse(info, n, m);
++    }
++
++    public void setClirResponse(RadioResponseInfo info) {
++        mResponse.setClirResponse(info);
++    }
++
++    public void getCallForwardStatusResponse(RadioResponseInfo info, ArrayList<CallForwardInfo> callForwardInfos) {
++        mResponse.getCallForwardStatusResponse(info, callForwardInfos);
++    }
++
++    public void setCallForwardResponse(RadioResponseInfo info) {
++        mResponse.setCallForwardResponse(info);
++    }
++
++    public void getCallWaitingResponse(RadioResponseInfo info, boolean enable, int serviceClass) {
++        mResponse.getCallWaitingResponse(info, enable, serviceClass);
++    }
++
++    public void setCallWaitingResponse(RadioResponseInfo info) {
++        mResponse.setCallWaitingResponse(info);
++    }
++
++    public void acknowledgeLastIncomingGsmSmsResponse(RadioResponseInfo info) {
++        mResponse.acknowledgeLastIncomingGsmSmsResponse(info);
++    }
++
++    public void acceptCallResponse(RadioResponseInfo info) {
++        mResponse.acceptCallResponse(info);
++    }
++
++    public void deactivateDataCallResponse(RadioResponseInfo info) {
++        mResponse.deactivateDataCallResponse(info);
++    }
++
++    public void getFacilityLockForAppResponse(RadioResponseInfo info, int response) {
++        mResponse.getFacilityLockForAppResponse(info, response);
++    }
++
++    public void setFacilityLockForAppResponse(RadioResponseInfo info, int retry) {
++        mResponse.setFacilityLockForAppResponse(info, retry);
++    }
++
++    public void setBarringPasswordResponse(RadioResponseInfo info) {
++        mResponse.setBarringPasswordResponse(info);
++    }
++
++    public void getNetworkSelectionModeResponse(RadioResponseInfo info, boolean manual) {
++        mResponse.getNetworkSelectionModeResponse(info, manual);
++    }
++
++    public void setNetworkSelectionModeAutomaticResponse(RadioResponseInfo info) {
++        mResponse.setNetworkSelectionModeAutomaticResponse(info);
++    }
++
++    public void setNetworkSelectionModeManualResponse(RadioResponseInfo info) {
++        mResponse.setNetworkSelectionModeManualResponse(info);
++    }
++
++    public void getAvailableNetworksResponse(RadioResponseInfo info, ArrayList<OperatorInfo> networkInfos) {
++        mResponse.getAvailableNetworksResponse(info, networkInfos);
++    }
++
++    public void startDtmfResponse(RadioResponseInfo info) {
++        mResponse.startDtmfResponse(info);
++    }
++
++    public void stopDtmfResponse(RadioResponseInfo info) {
++        mResponse.stopDtmfResponse(info);
++    }
++
++    public void getBasebandVersionResponse(RadioResponseInfo info, String version) {
++        mResponse.getBasebandVersionResponse(info, version);
++    }
++
++    public void separateConnectionResponse(RadioResponseInfo info) {
++        mResponse.separateConnectionResponse(info);
++    }
++
++    public void setMuteResponse(RadioResponseInfo info) {
++        mResponse.setMuteResponse(info);
++    }
++
++    public void getMuteResponse(RadioResponseInfo info, boolean enable) {
++        mResponse.getMuteResponse(info, enable);
++    }
++
++    public void getClipResponse(RadioResponseInfo info, int status) {
++        mResponse.getClipResponse(info, status);
++    }
++
++    public void getDataCallListResponse(RadioResponseInfo info, ArrayList<SetupDataCallResult> dcResponse) {
++        mResponse.getDataCallListResponse(info, dcResponse);
++    }
++
++    public void setSuppServiceNotificationsResponse(RadioResponseInfo info) {
++        mResponse.setSuppServiceNotificationsResponse(info);
++    }
++
++    public void writeSmsToSimResponse(RadioResponseInfo info, int index) {
++        mResponse.writeSmsToSimResponse(info, index);
++    }
++
++    public void deleteSmsOnSimResponse(RadioResponseInfo info) {
++        mResponse.deleteSmsOnSimResponse(info);
++    }
++
++    public void setBandModeResponse(RadioResponseInfo info) {
++        mResponse.setBandModeResponse(info);
++    }
++
++    public void getAvailableBandModesResponse(RadioResponseInfo info, ArrayList<Integer> bandModes) {
++        mResponse.getAvailableBandModesResponse(info, bandModes);
++    }
++
++    public void sendEnvelopeResponse(RadioResponseInfo info, String commandResponse) {
++        mResponse.sendEnvelopeResponse(info, commandResponse);
++    }
++
++    public void sendTerminalResponseToSimResponse(RadioResponseInfo info) {
++        mResponse.sendTerminalResponseToSimResponse(info);
++    }
++
++    public void handleStkCallSetupRequestFromSimResponse(RadioResponseInfo info) {
++        mResponse.handleStkCallSetupRequestFromSimResponse(info);
++    }
++
++    public void explicitCallTransferResponse(RadioResponseInfo info) {
++        mResponse.explicitCallTransferResponse(info);
++    }
++
++    public void setPreferredNetworkTypeResponse(RadioResponseInfo info) {
++        mResponse.setPreferredNetworkTypeResponse(info);
++    }
++
++    public void getPreferredNetworkTypeResponse(RadioResponseInfo info, int nwType) {
++        mResponse.getPreferredNetworkTypeResponse(info, nwType);
++    }
++
++    public void getNeighboringCidsResponse(RadioResponseInfo info, ArrayList<NeighboringCell> cells) {
++        mResponse.getNeighboringCidsResponse(info, cells);
++    }
++
++    public void setLocationUpdatesResponse(RadioResponseInfo info) {
++        mResponse.setLocationUpdatesResponse(info);
++    }
++
++    public void setCdmaSubscriptionSourceResponse(RadioResponseInfo info) {
++        mResponse.setCdmaSubscriptionSourceResponse(info);
++    }
++
++    public void setCdmaRoamingPreferenceResponse(RadioResponseInfo info) {
++        mResponse.setCdmaRoamingPreferenceResponse(info);
++    }
++
++    public void getCdmaRoamingPreferenceResponse(RadioResponseInfo info, int type) {
++        mResponse.getCdmaRoamingPreferenceResponse(info, type);
++    }
++
++    public void setTTYModeResponse(RadioResponseInfo info) {
++        mResponse.setTTYModeResponse(info);
++    }
++
++    public void getTTYModeResponse(RadioResponseInfo info, int mode) {
++        mResponse.getTTYModeResponse(info, mode);
++    }
++
++    public void setPreferredVoicePrivacyResponse(RadioResponseInfo info) {
++        mResponse.setPreferredVoicePrivacyResponse(info);
++    }
++
++    public void getPreferredVoicePrivacyResponse(RadioResponseInfo info, boolean enable) {
++        mResponse.getPreferredVoicePrivacyResponse(info, enable);
++    }
++
++    public void sendCDMAFeatureCodeResponse(RadioResponseInfo info) {
++        mResponse.sendCDMAFeatureCodeResponse(info);
++    }
++
++    public void sendBurstDtmfResponse(RadioResponseInfo info) {
++        mResponse.sendBurstDtmfResponse(info);
++    }
++
++    public void sendCdmaSmsResponse(RadioResponseInfo info, SendSmsResult sms) {
++        mResponse.sendCdmaSmsResponse(info, sms);
++    }
++
++    public void acknowledgeLastIncomingCdmaSmsResponse(RadioResponseInfo info) {
++        mResponse.acknowledgeLastIncomingCdmaSmsResponse(info);
++    }
++
++    public void getGsmBroadcastConfigResponse(RadioResponseInfo info, ArrayList<GsmBroadcastSmsConfigInfo> configs) {
++        mResponse.getGsmBroadcastConfigResponse(info, configs);
++    }
++
++    public void setGsmBroadcastConfigResponse(RadioResponseInfo info) {
++        mResponse.setGsmBroadcastConfigResponse(info);
++    }
++
++    public void setGsmBroadcastActivationResponse(RadioResponseInfo info) {
++        mResponse.setGsmBroadcastActivationResponse(info);
++    }
++
++    public void getCdmaBroadcastConfigResponse(RadioResponseInfo info, ArrayList<CdmaBroadcastSmsConfigInfo> configs) {
++        mResponse.getCdmaBroadcastConfigResponse(info, configs);
++    }
++
++    public void setCdmaBroadcastConfigResponse(RadioResponseInfo info) {
++        mResponse.setCdmaBroadcastConfigResponse(info);
++    }
++
++    public void setCdmaBroadcastActivationResponse(RadioResponseInfo info) {
++        mResponse.setCdmaBroadcastActivationResponse(info);
++    }
++
++    public void getCDMASubscriptionResponse(RadioResponseInfo info, String mdn, String hSid, String hNid, String min, String prl) {
++        mResponse.getCDMASubscriptionResponse(info, mdn, hSid, hNid, min, prl);
++    }
++
++    public void writeSmsToRuimResponse(RadioResponseInfo info, int index) {
++        mResponse.writeSmsToRuimResponse(info, index);
++    }
++
++    public void deleteSmsOnRuimResponse(RadioResponseInfo info) {
++        mResponse.deleteSmsOnRuimResponse(info);
++    }
++
++    public void getDeviceIdentityResponse(RadioResponseInfo info, String imei, String imeisv, String esn, String meid) {
++        mResponse.getDeviceIdentityResponse(info, imei, imeisv, esn, meid);
++    }
++
++    public void exitEmergencyCallbackModeResponse(RadioResponseInfo info) {
++        mResponse.exitEmergencyCallbackModeResponse(info);
++    }
++
++    public void getSmscAddressResponse(RadioResponseInfo info, String smsc) {
++        mResponse.getSmscAddressResponse(info, smsc);
++    }
++
++    public void setSmscAddressResponse(RadioResponseInfo info) {
++        mResponse.setSmscAddressResponse(info);
++    }
++
++    public void reportSmsMemoryStatusResponse(RadioResponseInfo info) {
++        mResponse.reportSmsMemoryStatusResponse(info);
++    }
++
++    public void reportStkServiceIsRunningResponse(RadioResponseInfo info) {
++        mResponse.reportStkServiceIsRunningResponse(info);
++    }
++
++    public void getCdmaSubscriptionSourceResponse(RadioResponseInfo info, int source) {
++        mResponse.getCdmaSubscriptionSourceResponse(info, source);
++    }
++
++    public void requestIsimAuthenticationResponse(RadioResponseInfo info, String response) {
++        mResponse.requestIsimAuthenticationResponse(info, response);
++    }
++
++    public void acknowledgeIncomingGsmSmsWithPduResponse(RadioResponseInfo info) {
++        mResponse.acknowledgeIncomingGsmSmsWithPduResponse(info);
++    }
++
++    public void sendEnvelopeWithStatusResponse(RadioResponseInfo info, IccIoResult iccIo) {
++        mResponse.sendEnvelopeWithStatusResponse(info, iccIo);
++    }
++
++    public void getVoiceRadioTechnologyResponse(RadioResponseInfo info, int rat) {
++        mResponse.getVoiceRadioTechnologyResponse(info, rat);
++    }
++
++    public void getCellInfoListResponse(RadioResponseInfo info, ArrayList<CellInfo> cellInfo) {
++        mResponse.getCellInfoListResponse(info, cellInfo);
++    }
++
++    public void setCellInfoListRateResponse(RadioResponseInfo info) {
++        mResponse.setCellInfoListRateResponse(info);
++    }
++
++    public void setInitialAttachApnResponse(RadioResponseInfo info) {
++        mResponse.setInitialAttachApnResponse(info);
++    }
++
++    public void getImsRegistrationStateResponse(RadioResponseInfo info, boolean isRegistered, int ratFamily) {
++        mResponse.getImsRegistrationStateResponse(info, isRegistered, ratFamily);
++    }
++
++    public void sendImsSmsResponse(RadioResponseInfo info, SendSmsResult sms) {
++        mResponse.sendImsSmsResponse(info, sms);
++    }
++
++    public void iccTransmitApduBasicChannelResponse(RadioResponseInfo info, IccIoResult result) {
++        mResponse.iccTransmitApduBasicChannelResponse(info, result);
++    }
++
++    public void iccOpenLogicalChannelResponse(RadioResponseInfo info, int channelId, ArrayList<Byte> selectResponse) {
++        mResponse.iccOpenLogicalChannelResponse(info, channelId, selectResponse);
++    }
++
++    public void iccCloseLogicalChannelResponse(RadioResponseInfo info) {
++        mResponse.iccCloseLogicalChannelResponse(info);
++    }
++
++    public void iccTransmitApduLogicalChannelResponse(RadioResponseInfo info, IccIoResult result) {
++        mResponse.iccTransmitApduLogicalChannelResponse(info, result);
++    }
++
++    public void nvReadItemResponse(RadioResponseInfo info, String result) {
++        mResponse.nvReadItemResponse(info, result);
++    }
++
++    public void nvWriteItemResponse(RadioResponseInfo info) {
++        mResponse.nvWriteItemResponse(info);
++    }
++
++    public void nvWriteCdmaPrlResponse(RadioResponseInfo info) {
++        mResponse.nvWriteCdmaPrlResponse(info);
++    }
++
++    public void nvResetConfigResponse(RadioResponseInfo info) {
++        mResponse.nvResetConfigResponse(info);
++    }
++
++    public void setUiccSubscriptionResponse(RadioResponseInfo info) {
++        mResponse.setUiccSubscriptionResponse(info);
++    }
++
++    public void setDataAllowedResponse(RadioResponseInfo info) {
++        mResponse.setDataAllowedResponse(info);
++    }
++
++    public void getHardwareConfigResponse(RadioResponseInfo info, ArrayList<HardwareConfig> config) {
++        mResponse.getHardwareConfigResponse(info, config);
++    }
++
++    public void requestIccSimAuthenticationResponse(RadioResponseInfo info, IccIoResult result) {
++        mResponse.requestIccSimAuthenticationResponse(info, result);
++    }
++
++    public void setDataProfileResponse(RadioResponseInfo info) {
++        mResponse.setDataProfileResponse(info);
++    }
++
++    public void requestShutdownResponse(RadioResponseInfo info) {
++        mResponse.requestShutdownResponse(info);
++    }
++
++    public void getRadioCapabilityResponse(RadioResponseInfo info, RadioCapability rc) {
++        mResponse.getRadioCapabilityResponse(info, rc);
++    }
++
++    public void setRadioCapabilityResponse(RadioResponseInfo info, RadioCapability rc) {
++        mResponse.setRadioCapabilityResponse(info, rc);
++    }
++
++    public void startLceServiceResponse(RadioResponseInfo info, LceStatusInfo statusInfo) {
++        mResponse.startLceServiceResponse(info, statusInfo);
++    }
++
++    public void stopLceServiceResponse(RadioResponseInfo info, LceStatusInfo statusInfo) {
++        mResponse.stopLceServiceResponse(info, statusInfo);
++    }
++
++    public void pullLceDataResponse(RadioResponseInfo info, LceDataInfo lceInfo) {
++        mResponse.pullLceDataResponse(info, lceInfo);
++    }
++
++    public void getModemActivityInfoResponse(RadioResponseInfo info, ActivityStatsInfo activityInfo) {
++        mResponse.getModemActivityInfoResponse(info, activityInfo);
++    }
++
++    public void setAllowedCarriersResponse(RadioResponseInfo info, int numAllowed) {
++        mResponse.setAllowedCarriersResponse(info, numAllowed);
++    }
++
++    public void getAllowedCarriersResponse(RadioResponseInfo info, boolean allAllowed, CarrierRestrictions carriers) {
++        mResponse.getAllowedCarriersResponse(info, allAllowed, carriers);
++    }
++
++    public void sendDeviceStateResponse(RadioResponseInfo info) {
++        mResponse.sendDeviceStateResponse(info);
++    }
++
++    public void setIndicationFilterResponse(RadioResponseInfo info) {
++        mResponse.setIndicationFilterResponse(info);
++    }
++
++    public void setSimCardPowerResponse(RadioResponseInfo info) {
++        mResponse.setSimCardPowerResponse(info);
++    }
++
++    public void acknowledgeRequest(int serial) {
++        mResponse.acknowledgeRequest(serial);
++    }
++    //-- Radio V1_0
++
++    //++ Radio V1_1
++    public void setCarrierInfoForImsiEncryptionResponse(RadioResponseInfo info) {
++        mResponse.setCarrierInfoForImsiEncryptionResponse(info);
++    }
++
++    public void setSimCardPowerResponse_1_1(RadioResponseInfo info) {
++        mResponse.setSimCardPowerResponse_1_1(info);
++    }
++
++    public void startNetworkScanResponse(RadioResponseInfo info) {
++        mResponse.startNetworkScanResponse(info);
++    }
++
++    public void stopNetworkScanResponse(RadioResponseInfo info) {
++        mResponse.stopNetworkScanResponse(info);
++    }
++
++    public void startKeepaliveResponse(RadioResponseInfo info, KeepaliveStatus status) {
++        mResponse.startKeepaliveResponse(info, status);
++    }
++
++    public void stopKeepaliveResponse(RadioResponseInfo info) {
++        mResponse.stopKeepaliveResponse(info);
++    }
++    //-- Radio V1_1
++
++    //++ MTK Radio V2_0
++    public void setTrmResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setTrmResponse not implemented");
++    }
++
++    public void getATRResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getATRResponse not implemented");
++    }
++
++    public void setSimPowerResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setSimPowerResponse not implemented");
++    }
++
++    public void setModemPowerResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setModemPowerResponse not implemented");
++    }
++
++    public void hangupAllResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< hangupAllResponse not implemented");
++    }
++
++    public void setCallIndicationResponse(RadioResponseInfo info) {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setCallIndicationResponse");
++      mResponse.responseVoid(info);
++    }
++
++    public void emergencyDialResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< emergencyDialResponse not implemented");
++    }
++
++    public void setEccServiceCategoryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setEccServiceCategoryResponse not implemented");
++    }
++
++    public void setEccListResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setEccListResponse not implemented");
++    }
++
++    public void vtDialResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< vtDialResponse not implemented");
++    }
++
++    public void voiceAcceptResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< voiceAcceptResponse not implemented");
++    }
++
++    public void replaceVtCallResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< replaceVtCallResponse not implemented");
++    }
++
++    public void setNetworkSelectionModeManualWithActResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setNetworkSelectionModeManualWithActResponse not implemented");
++    }
++
++    public void getAvailableNetworksWithActResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getAvailableNetworksWithActResponse not implemented");
++    }
++
++    public void cancelAvailableNetworksResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< cancelAvailableNetworksResponse not implemented");
++    }
++
++    public void currentStatusResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< currentStatusResponse not implemented");
++    }
++
++    public void eccPreferredRatResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< eccPreferredRatResponse not implemented");
++    }
++
++    public void getSmsParametersResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getSmsParametersResponse not implemented");
++    }
++
++    public void setSmsParametersResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setSmsParametersResponse not implemented");
++    }
++
++    public void getSmsMemStatusResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getSmsMemStatusResponse not implemented");
++    }
++
++    public void setEtwsResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setEtwsResponse not implemented");
++    }
++
++    public void removeCbMsgResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< removeCbMsgResponse not implemented");
++    }
++
++    public void setGsmBroadcastLangsResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setGsmBroadcastLangsResponse not implemented");
++    }
++
++    public void getGsmBroadcastLangsResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getGsmBroadcastLangsResponse not implemented");
++    }
++
++    public void getGsmBroadcastActivationRsp() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getGsmBroadcastActivationRsp not implemented");
++    }
++
++    public void sendEmbmsAtCommandResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< sendEmbmsAtCommandResponse not implemented");
++    }
++
++    public void setupDataCallResponseEx(RadioResponseInfo responseInfo,
++        MtkSetupDataCallResult setupDataCallResult) {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setupDataCallResponse");
++        mResponse.setupDataCallResponse(responseInfo, setupDataCallResult.dcr);
++    }
++
++    public void getDataCallListResponseEx(RadioResponseInfo info,
++        ArrayList<MtkSetupDataCallResult> mtkDcList) {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getDataCallListResponseEx");
++        ArrayList<SetupDataCallResult> dcList = new ArrayList<SetupDataCallResult>();
++        mtkDcList.forEach(entry -> dcList.add(entry.dcr));
++        mResponse.getDataCallListResponse(info, dcList);
++    }
++
++    public void setApcModeResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setApcModeResponse not implemented");
++    }
++
++    public void getApcInfoResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getApcInfoResponse not implemented");
++    }
++
++    public void triggerModeSwitchByEccResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< triggerModeSwitchByEccResponse not implemented");
++    }
++
++    public void getSmsRuimMemoryStatusResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getSmsRuimMemoryStatusResponse not implemented");
++    }
++
++    public void setFdModeResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setFdModeResponse not implemented");
++    }
++
++    public void setResumeRegistrationResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setResumeRegistrationResponse not implemented");
++    }
++
++    public void storeModemTypeResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< storeModemTypeResponse not implemented");
++    }
++
++    public void reloadModemTypeResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< reloadModemTypeResponse not implemented");
++    }
++
++    public void handleStkCallSetupRequestFromSimWithResCodeResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< handleStkCallSetupRequestFromSimWithResCodeResponse not implemented");
++    }
++
++    public void getFemtocellListResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getFemtocellListResponse not implemented");
++    }
++
++    public void abortFemtocellListResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< abortFemtocellListResponse not implemented");
++    }
++
++    public void selectFemtocellResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< selectFemtocellResponse not implemented");
++    }
++
++    public void queryFemtoCellSystemSelectionModeResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< queryFemtoCellSystemSelectionModeResponse not implemented");
++    }
++
++    public void setFemtoCellSystemSelectionModeResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setFemtoCellSystemSelectionModeResponse not implemented");
++    }
++
++    public void setClipResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setClipResponse not implemented");
++    }
++
++    public void getColpResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getColpResponse not implemented");
++    }
++
++    public void getColrResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getColrResponse not implemented");
++    }
++
++    public void sendCnapResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< sendCnapResponse not implemented");
++    }
++
++    public void setColpResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setColpResponse not implemented");
++    }
++
++    public void setColrResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setColrResponse not implemented");
++    }
++
++    public void queryCallForwardInTimeSlotStatusResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< queryCallForwardInTimeSlotStatusResponse not implemented");
++    }
++
++    public void setCallForwardInTimeSlotResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setCallForwardInTimeSlotResponse not implemented");
++    }
++
++    public void runGbaAuthenticationResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< runGbaAuthenticationResponse not implemented");
++    }
++
++    public void queryPhbStorageInfoResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< queryPhbStorageInfoResponse not implemented");
++    }
++
++    public void writePhbEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< writePhbEntryResponse not implemented");
++    }
++
++    public void readPhbEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< readPhbEntryResponse not implemented");
++    }
++
++    public void queryUPBCapabilityResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< queryUPBCapabilityResponse not implemented");
++    }
++
++    public void editUPBEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< editUPBEntryResponse not implemented");
++    }
++
++    public void deleteUPBEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< deleteUPBEntryResponse not implemented");
++    }
++
++    public void readUPBGasListResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< readUPBGasListResponse not implemented");
++    }
++
++    public void readUPBGrpEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< readUPBGrpEntryResponse not implemented");
++    }
++
++    public void writeUPBGrpEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< writeUPBGrpEntryResponse not implemented");
++    }
++
++    public void getPhoneBookStringsLengthResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getPhoneBookStringsLengthResponse not implemented");
++    }
++
++    public void getPhoneBookMemStorageResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getPhoneBookMemStorageResponse not implemented");
++    }
++
++    public void setPhoneBookMemStorageResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setPhoneBookMemStorageResponse not implemented");
++    }
++
++    public void readPhoneBookEntryExtResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< readPhoneBookEntryExtResponse not implemented");
++    }
++
++    public void writePhoneBookEntryExtResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< writePhoneBookEntryExtResponse not implemented");
++    }
++
++    public void queryUPBAvailableResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< queryUPBAvailableResponse not implemented");
++    }
++
++    public void readUPBEmailEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< readUPBEmailEntryResponse not implemented");
++    }
++
++    public void readUPBSneEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< readUPBSneEntryResponse not implemented");
++    }
++
++    public void readUPBAnrEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< readUPBAnrEntryResponse not implemented");
++    }
++
++    public void readUPBAasListResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< readUPBAasListResponse not implemented");
++    }
++
++    public void queryNetworkLockResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< queryNetworkLockResponse not implemented");
++    }
++
++    public void setNetworkLockResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setNetworkLockResponse not implemented");
++    }
++
++    public void resetRadioResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< resetRadioResponse not implemented");
++    }
++
++    public void syncDataSettingsToMdResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< syncDataSettingsToMdResponse not implemented");
++    }
++
++    public void resetMdDataRetryCountResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< resetMdDataRetryCountResponse not implemented");
++    }
++
++    public void setRemoveRestrictEutranModeResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setRemoveRestrictEutranModeResponse not implemented");
++    }
++
++    public void setLteAccessStratumReportResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setLteAccessStratumReportResponse not implemented");
++    }
++
++    public void setLteUplinkDataTransferResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setLteUplinkDataTransferResponse not implemented");
++    }
++
++    public void setRxTestConfigResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setRxTestConfigResponse not implemented");
++    }
++
++    public void getRxTestResultResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getRxTestResultResponse not implemented");
++    }
++
++    public void getPOLCapabilityResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getPOLCapabilityResponse not implemented");
++    }
++
++    public void getCurrentPOLListResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getCurrentPOLListResponse not implemented");
++    }
++
++    public void setPOLEntryResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setPOLEntryResponse not implemented");
++    }
++
++    public void setRoamingEnableResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setRoamingEnableResponse not implemented");
++    }
++
++    public void getRoamingEnableResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< getRoamingEnableResponse not implemented");
++    }
++
++    public void vsimNotificationResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< vsimNotificationResponse not implemented");
++    }
++
++    public void vsimOperationResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< vsimOperationResponse not implemented");
++    }
++
++    public void setWifiEnabledResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setWifiEnabledResponse not implemented");
++    }
++
++    public void setWifiAssociatedResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setWifiAssociatedResponse not implemented");
++    }
++
++    public void setWifiSignalLevelResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setWifiSignalLevelResponse not implemented");
++    }
++
++    public void setWifiIpAddressResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setWifiIpAddressResponse not implemented");
++    }
++
++    public void setLocationInfoResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setLocationInfoResponse not implemented");
++    }
++
++    public void setEmergencyAddressIdResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setEmergencyAddressIdResponse not implemented");
++    }
++
++    public void setNattKeepAliveStatusResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setNattKeepAliveStatusResponse not implemented");
++    }
++
++    public void setE911StateResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setE911StateResponse not implemented");
++    }
++
++    public void setServiceStateToModemResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< setServiceStateToModemResponse not implemented");
++    }
++
++    public void sendRequestRawResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< sendRequestRawResponse not implemented");
++    }
++
++    public void sendRequestStringsResponse() {
++        if (RIL.RILJ_LOGD) mRil.riljLog("[MTK]< sendRequestStringsResponse not implemented");
++    }
++    //-- MTK Radio V2_0
++}
+diff -prNu android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/RIL.java android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/RIL.java
+--- android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/RIL.java	2026-05-04 20:38:01.195931625 -0400
++++ android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/RIL.java	2026-05-04 20:39:14.699936727 -0400
+@@ -340,6 +340,9 @@ public final class RIL extends BaseComma
+     final AtomicLong mRadioProxyCookie = new AtomicLong(0);
+     final RadioProxyDeathRecipient mRadioProxyDeathRecipient;
+     final RilHandler mRilHandler;
++    vendor.mediatek.hardware.radio.V2_0.IRadioResponse mMtkRadioResponse;
++    vendor.mediatek.hardware.radio.V2_0.IRadioIndication mMtkRadioIndication;
++    volatile vendor.mediatek.hardware.radio.V2_0.IRadio mMtkRadioProxy = null;
+ 
+     //***** Events
+     static final int EVENT_WAKE_LOCK_TIMEOUT    = 2;
+@@ -541,6 +544,23 @@ public final class RIL extends BaseComma
+                     IRADIO_GET_SERVICE_DELAY_MILLIS);
+         }
+ 
++        if (mRadioProxy != null) {
++            try {
++                mMtkRadioProxy =
++                        vendor.mediatek.hardware.radio.V2_0.IRadio.getService(
++                                HIDL_SERVICE_NAME[mPhoneId == null ? 0 : mPhoneId]);
++                if (mMtkRadioProxy != null) {
++                    if (mMtkRadioResponse == null && mMtkRadioIndication == null) {
++                            mMtkRadioResponse = new MtkRadioResponse(this, mRadioResponse);
++                            mMtkRadioIndication = new MtkRadioIndication(this, mRadioIndication);
++                    }
++                    mMtkRadioProxy.setResponseFunctionsMtk(mMtkRadioResponse, mMtkRadioIndication);
++                }
++            } catch (RemoteException | RuntimeException e) {
++                riljLog("MTK RadioProxy is not available");
++            }
++        }
++
+         return mRadioProxy;
+     }
+ 
+@@ -5092,8 +5112,106 @@ public final class RIL extends BaseComma
+         return response;
+     }
+ 
++    static SignalStrength convertHalSignalStrengthHuawei(
++            android.hardware.radio.V1_0.SignalStrength signalStrength) {
++	            int gsmSignalStrength = signalStrength.gw.signalStrength;
++        int gsmBitErrorRate = signalStrength.gw.bitErrorRate;
++        int mWcdmaRscp = 0;
++        int mWcdmaEcio = 0;
++        int cdmaDbm = signalStrength.cdma.dbm;
++        int cdmaEcio = signalStrength.cdma.ecio;
++        int evdoDbm = signalStrength.evdo.dbm;
++        int evdoEcio = signalStrength.evdo.ecio;
++        int evdoSnr = signalStrength.evdo.signalNoiseRatio;
++        int lteSignalStrength = signalStrength.lte.signalStrength;
++        int lteRsrp = signalStrength.lte.rsrp;
++        int lteRsrq = signalStrength.lte.rsrq;
++        int lteRssnr = signalStrength.lte.rssnr;
++        int lteCqi = signalStrength.lte.cqi;
++        int mGsm = 0;
++        int mRat = 0;
++
++        if (lteRsrp != 0) { // LTE
++            if (lteRsrp > -20) lteSignalStrength = 64; // None or Unknown
++            else if (lteRsrp >= -97) lteSignalStrength = 63; // Great
++            else if (lteRsrp >= -105) lteSignalStrength = 11; // Good
++            else if (lteRsrp >= -113) lteSignalStrength = 7; // Moderate
++            else if (lteRsrp >= -120) lteSignalStrength = 4; // Poor
++            else if (lteRsrp >= -140) lteSignalStrength = 64; // None or Unknown
++        } else if (gsmSignalStrength == 0 && lteRsrp == 0) { // 3G
++            lteRsrp = (mWcdmaRscp & 0xFF) - 256;
++            lteRsrq = (mWcdmaEcio & 0xFF) - 256;
++            if (lteRsrp > -20) { // None or Unknown
++                lteSignalStrength = 64;
++                lteRssnr = -200;
++            } else if (lteRsrp >= -85) { // Great
++                lteSignalStrength = 63;
++                lteRssnr = 300;
++            } else if (lteRsrp >= -95) { // Good
++                lteSignalStrength = 11;
++                lteRssnr = 129;
++            } else if (lteRsrp >= -105) { // Moderate
++                lteSignalStrength = 7;
++                lteRssnr = 44;
++            } else if (lteRsrp >= -115) { // Poor
++                lteSignalStrength = 4;
++                lteRssnr = 9;
++            } else if (lteRsrp >= -140) { // None or Unknown
++                lteSignalStrength = 64;
++                lteRssnr = -200;
++            }
++        } else if (mWcdmaRscp == 0 && lteRsrp == 0) { // 2G
++            lteRsrp = (gsmSignalStrength & 0xFF) - 256;
++            if (lteRsrp > -20) { // None or Unknown
++                lteSignalStrength = 64;
++                lteRsrq = -21;
++                lteRssnr = -200;
++            } else if (lteRsrp >= -85) { // Great
++                lteSignalStrength = 63;
++                lteRsrq = -3;
++                lteRssnr = 300;
++            } else if (lteRsrp >= -95) { // Good
++                lteSignalStrength = 11;
++                lteRsrq = -7;
++                lteRssnr = 129;
++            } else if (lteRsrp >= -105) { // Moderate
++                lteSignalStrength = 7;
++                lteRsrq = -12;
++                lteRssnr = 44;
++            } else if (lteRsrp >= -115) { // Poor
++                lteSignalStrength = 4;
++                lteRsrq = -17;
++                lteRssnr = 9;
++            } else if (lteRsrp >= -140) { // None or Unknown
++                lteSignalStrength = 64;
++                lteRsrq = -21;
++                lteRssnr = -200;
++            }
++        }
++
++        return new SignalStrength(gsmSignalStrength,
++                gsmSignalStrength,
++                cdmaDbm,
++                cdmaEcio,
++                evdoDbm,
++                evdoEcio,
++                evdoSnr,
++                lteSignalStrength,
++                lteRsrp,
++                lteRsrq,
++                lteRssnr,
++                lteCqi,
++                signalStrength.tdScdma.rscp,
++                false);
++    }
++
+     static SignalStrength convertHalSignalStrength(
+             android.hardware.radio.V1_0.SignalStrength signalStrength) {
++
++        String method = android.os.SystemProperties.get("persist.sys.signal.level", "default");
++        if("openkirin".equals(method))
++            return convertHalSignalStrengthHuawei(signalStrength);
++
+         return new SignalStrength(signalStrength.gw.signalStrength,
+                 signalStrength.gw.bitErrorRate,
+                 signalStrength.cdma.dbm,
+@@ -5109,4 +5227,23 @@ public final class RIL extends BaseComma
+                 signalStrength.tdScdma.rscp,
+                 false /* gsmFlag - don't care; will be changed by SST */);
+     }
++
++    void setCallIndication(int callId, int seqNo) {
++        // Ensure that mMtkRadioProxy is updated.
++        IRadio radioProxy = getRadioProxy(null);
++        if (mMtkRadioProxy != null) {
++            RILRequest rr = obtainRequest(-1, null, mRILDefaultWorkSource);
++
++            if (RILJ_LOGD) {
++                riljLog(rr.serialString() + "> " + "setCallIndication");
++            }
++
++            try {
++                mMtkRadioProxy.setCallIndication(
++                        rr.mSerial, 0 /* 0: allowed, 1: disallowed */, callId, seqNo);
++            } catch (RemoteException | RuntimeException e) {
++                handleRadioProxyExceptionForRR(rr, "setCallIndication", e);
++            }
++        }
++    }
+ }
+diff -prNu android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/RadioResponse.java android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/RadioResponse.java
+--- android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/RadioResponse.java	2026-05-04 20:38:01.195931625 -0400
++++ android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/RadioResponse.java	2026-05-04 20:39:14.699936727 -0400
+@@ -1377,7 +1377,7 @@ public class RadioResponse extends IRadi
+         }
+     }
+ 
+-    private void responseVoid(RadioResponseInfo responseInfo) {
++    void responseVoid(RadioResponseInfo responseInfo) {
+         RILRequest rr = mRil.processResponse(responseInfo);
+ 
+         if (rr != null) {
+diff -prNu android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/dataconnection/DcTracker.java android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/dataconnection/DcTracker.java
+--- android-8.1.0_r65/frameworks/opt/telephony/src/java/com/android/internal/telephony/dataconnection/DcTracker.java	2026-05-04 20:38:01.199931625 -0400
++++ android-8.1.0_r65-phh/frameworks/opt/telephony/src/java/com/android/internal/telephony/dataconnection/DcTracker.java	2026-05-04 20:39:14.703936727 -0400
+@@ -3324,11 +3324,13 @@ public class DcTracker extends Handler {
+     }
+ 
+     private void setDataProfilesAsNeeded() {
++        boolean forceCognitive = SystemProperties.getBoolean("persist.sys.phh.radio.force_cognitive", false);
++
+         if (DBG) log("setDataProfilesAsNeeded");
+         if (mAllApnSettings != null && !mAllApnSettings.isEmpty()) {
+             ArrayList<DataProfile> dps = new ArrayList<DataProfile>();
+             for (ApnSetting apn : mAllApnSettings) {
+-                if (apn.modemCognitive) {
++                if (apn.modemCognitive || forceCognitive) {
+                     DataProfile dp = new DataProfile(apn);
+                     if (!dps.contains(dp)) {
+                         dps.add(dp);
+diff -prNu android-8.1.0_r65/system/bt/hci/include/bt_hci_bdroid.h android-8.1.0_r65-phh/system/bt/hci/include/bt_hci_bdroid.h
+--- android-8.1.0_r65/system/bt/hci/include/bt_hci_bdroid.h	2026-05-04 20:38:03.315931644 -0400
++++ android-8.1.0_r65-phh/system/bt/hci/include/bt_hci_bdroid.h	2026-05-04 20:39:14.519936703 -0400
+@@ -32,6 +32,9 @@
+ #ifdef HAS_BDROID_BUILDCFG
+ #include "bdroid_buildcfg.h"
+ #endif
++#ifndef BTM_BYPASS_EXTRA_ACL_SETUP
++#define BTM_BYPASS_EXTRA_ACL_SETUP TRUE
++#endif
+ 
+ /******************************************************************************
+  *  Constants & Macros
+diff -prNu android-8.1.0_r65/system/bt/include/bt_target.h android-8.1.0_r65-phh/system/bt/include/bt_target.h
+--- android-8.1.0_r65/system/bt/include/bt_target.h	2026-05-04 20:38:03.315931644 -0400
++++ android-8.1.0_r65-phh/system/bt/include/bt_target.h	2026-05-04 20:39:14.519936703 -0400
+@@ -32,6 +32,9 @@
+ #ifdef HAS_BDROID_BUILDCFG
+ #include "bdroid_buildcfg.h"
+ #endif
++#ifndef BTM_BYPASS_EXTRA_ACL_SETUP
++#define BTM_BYPASS_EXTRA_ACL_SETUP TRUE
++#endif
+ 
+ #include "bt_types.h" /* This must be defined AFTER buildcfg.h */
+ 
+diff -prNu android-8.1.0_r65/system/bt/stack/btm/btm_acl.cc android-8.1.0_r65-phh/system/bt/stack/btm/btm_acl.cc
+--- android-8.1.0_r65/system/bt/stack/btm/btm_acl.cc	2026-05-04 20:38:03.331931644 -0400
++++ android-8.1.0_r65-phh/system/bt/stack/btm/btm_acl.cc	2026-05-04 20:39:14.531936705 -0400
+@@ -1164,17 +1164,17 @@ void btm_read_remote_ext_features_failed
+ void btm_establish_continue(tACL_CONN* p_acl_cb) {
+   tBTM_BL_EVENT_DATA evt_data;
+   BTM_TRACE_DEBUG("btm_establish_continue");
+-#if (BTM_BYPASS_EXTRA_ACL_SETUP == FALSE)
+-  if (p_acl_cb->transport == BT_TRANSPORT_BR_EDR) {
+-    /* For now there are a some devices that do not like sending */
+-    /* commands events and data at the same time. */
+-    /* Set the packet types to the default allowed by the device */
+-    btm_set_packet_types(p_acl_cb, btm_cb.btm_acl_pkt_types_supported);
++  if (!BTM_BYPASS_EXTRA_ACL_SETUP) {
++    if (p_acl_cb->transport == BT_TRANSPORT_BR_EDR) {
++      /* For now there are a some devices that do not like sending */
++      /* commands events and data at the same time. */
++      /* Set the packet types to the default allowed by the device */
++      btm_set_packet_types(p_acl_cb, btm_cb.btm_acl_pkt_types_supported);
+ 
+-    if (btm_cb.btm_def_link_policy)
+-      BTM_SetLinkPolicy(p_acl_cb->remote_addr, &btm_cb.btm_def_link_policy);
++      if (btm_cb.btm_def_link_policy)
++        BTM_SetLinkPolicy(p_acl_cb->remote_addr, &btm_cb.btm_def_link_policy);
++    }
+   }
+-#endif
+   p_acl_cb->link_up_issued = true;
+ 
+   /* If anyone cares, tell him database changed */
+diff -prNu android-8.1.0_r65/system/bt/stack/btm/btm_sec.cc android-8.1.0_r65-phh/system/bt/stack/btm/btm_sec.cc
+--- android-8.1.0_r65/system/bt/stack/btm/btm_sec.cc	2026-05-04 20:38:03.331931644 -0400
++++ android-8.1.0_r65-phh/system/bt/stack/btm/btm_sec.cc	2026-05-04 20:39:14.531936705 -0400
+@@ -4493,15 +4493,15 @@ void btm_sec_connected(const RawAddress&
+   if (p_acl_cb) {
+ /* whatever is in btm_establish_continue() without reporting the BTM_BL_CONN_EVT
+  * event */
+-#if (BTM_BYPASS_EXTRA_ACL_SETUP == FALSE)
+-    /* For now there are a some devices that do not like sending */
+-    /* commands events and data at the same time. */
+-    /* Set the packet types to the default allowed by the device */
+-    btm_set_packet_types(p_acl_cb, btm_cb.btm_acl_pkt_types_supported);
++    if(!BTM_BYPASS_EXTRA_ACL_SETUP) {
++      /* For now there are a some devices that do not like sending */
++      /* commands events and data at the same time. */
++      /* Set the packet types to the default allowed by the device */
++      btm_set_packet_types(p_acl_cb, btm_cb.btm_acl_pkt_types_supported);
+ 
+-    if (btm_cb.btm_def_link_policy)
+-      BTM_SetLinkPolicy(p_acl_cb->remote_addr, &btm_cb.btm_def_link_policy);
+-#endif
++      if (btm_cb.btm_def_link_policy)
++        BTM_SetLinkPolicy(p_acl_cb->remote_addr, &btm_cb.btm_def_link_policy);
++    }
+   }
+   btm_acl_created(bda, p_dev_rec->dev_class, p_dev_rec->sec_bd_name, handle,
+                   HCI_ROLE_SLAVE, BT_TRANSPORT_BR_EDR);
+diff -prNu android-8.1.0_r65/system/core/logd/LogListener.cpp android-8.1.0_r65-phh/system/core/logd/LogListener.cpp
+--- android-8.1.0_r65/system/core/logd/LogListener.cpp	2026-05-04 20:38:03.439931645 -0400
++++ android-8.1.0_r65-phh/system/core/logd/LogListener.cpp	2026-05-04 20:39:14.683936725 -0400
+@@ -145,14 +145,14 @@ int LogListener::getLogSocket() {
+     static const char socketName[] = "logdw";
+     int sock = android_get_control_socket(socketName);
+ 
+-    if (sock < 0) {  // logd started up in init.sh
++    if (sock < 0) {
+         sock = socket_local_server(
+             socketName, ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_DGRAM);
++    }
+ 
+-        int on = 1;
+-        if (setsockopt(sock, SOL_SOCKET, SO_PASSCRED, &on, sizeof(on))) {
+-            return -1;
+-        }
++    int on = 1;
++    if (setsockopt(sock, SOL_SOCKET, SO_PASSCRED, &on, sizeof(on)) < 0) {
++        return -1;
+     }
+     return sock;
+ }
+diff -prNu android-8.1.0_r65/system/core/logd/logd.rc android-8.1.0_r65-phh/system/core/logd/logd.rc
+--- android-8.1.0_r65/system/core/logd/logd.rc	2026-05-04 20:38:03.443931645 -0400
++++ android-8.1.0_r65-phh/system/core/logd/logd.rc	2026-05-04 20:39:14.687936725 -0400
+@@ -1,7 +1,7 @@
+ service logd /system/bin/logd
+     socket logd stream 0666 logd logd
+     socket logdr seqpacket 0666 logd logd
+-    socket logdw dgram+passcred 0222 logd logd
++    socket logdw dgram 0222 logd logd
+     file /proc/kmsg r
+     file /dev/kmsg w
+     user logd
+diff -prNu android-8.1.0_r65/system/libvintf/assemble_vintf.cpp android-8.1.0_r65-phh/system/libvintf/assemble_vintf.cpp
+--- android-8.1.0_r65/system/libvintf/assemble_vintf.cpp	2026-05-04 20:38:03.295931643 -0400
++++ android-8.1.0_r65-phh/system/libvintf/assemble_vintf.cpp	2026-05-04 20:39:14.495936700 -0400
+@@ -266,7 +266,7 @@ class AssembleVintf {
+             }
+ 
+             matrix->framework.mSepolicy =
+-                Sepolicy(kernelSepolicyVers, {{sepolicyVers.majorVer, sepolicyVers.minorVer}});
++                Sepolicy(kernelSepolicyVers, {{sepolicyVers.majorVer, sepolicyVers.minorVer}, { 26, 0}});
+ 
+             Version avbMetaVersion;
+             if (!getFlag("FRAMEWORK_VBMETA_VERSION", &avbMetaVersion)) {
+diff -prNu android-8.1.0_r65/system/libvintf/parse_xml.cpp android-8.1.0_r65-phh/system/libvintf/parse_xml.cpp
+--- android-8.1.0_r65/system/libvintf/parse_xml.cpp	2026-05-04 20:38:03.299931642 -0400
++++ android-8.1.0_r65-phh/system/libvintf/parse_xml.cpp	2026-05-04 20:39:14.495936700 -0400
+@@ -862,6 +862,7 @@ struct CompatibilityMatrixConverter : pu
+             appendChildren(root, matrixKernelConverter, m.framework.mKernels, d);
+             appendChild(root, sepolicyConverter(m.framework.mSepolicy, d));
+             appendChild(root, avbConverter(m.framework.mAvbMetaVersion, d));
++            appendChild(root, avbConverter({1, 0}, d));
+         } else if (m.mType == SchemaType::DEVICE) {
+             appendChild(root, vndkConverter(m.device.mVndk, d));
+         }
+diff -prNu android-8.1.0_r65/system/netd/server/NatController.cpp android-8.1.0_r65-phh/system/netd/server/NatController.cpp
+--- android-8.1.0_r65/system/netd/server/NatController.cpp	2026-05-04 20:38:03.351931643 -0400
++++ android-8.1.0_r65-phh/system/netd/server/NatController.cpp	2026-05-04 20:39:14.499936701 -0400
+@@ -205,7 +205,7 @@ int NatController::setForwardRules(bool
+         "*raw\n"
+         "%s %s -i %s -m rpfilter --invert ! -s fe80::/64 -j DROP\n"
+         "COMMIT\n", op, LOCAL_RAW_PREROUTING, intIface);
+-    if (iptablesRestoreFunction(V6, rpfilterCmd) == -1 && add) {
++    if (iptablesRestoreFunction(V6, rpfilterCmd) == -1 && add && false) {
+         return -1;
+     }
+ 
+diff -prNu android-8.1.0_r65/system/vold/Disk.cpp android-8.1.0_r65-phh/system/vold/Disk.cpp
+--- android-8.1.0_r65/system/vold/Disk.cpp	2026-05-04 20:38:03.355931644 -0400
++++ android-8.1.0_r65-phh/system/vold/Disk.cpp	2026-05-04 20:39:14.539936706 -0400
+@@ -50,7 +50,8 @@ static const char* kSgdiskPath = "/syste
+ static const char* kSgdiskToken = " \t\n";
+ 
+ static const char* kSysfsLoopMaxMinors = "/sys/module/loop/parameters/max_part";
+-static const char* kSysfsMmcMaxMinors = "/sys/module/mmcblk/parameters/perdev_minors";
++static const char* kSysfsMmcMaxMinorsDeprecated = "/sys/module/mmcblk/parameters/perdev_minors";
++static const char* kSysfsMmcMaxMinors = "/sys/module/mmc_block/parameters/perdev_minors";
+ 
+ static const unsigned int kMajorBlockLoop = 7;
+ static const unsigned int kMajorBlockScsiA = 8;
+@@ -566,7 +567,8 @@ int Disk::getMaxMinors() {
+     case kMajorBlockMmc: {
+         // Per Documentation/devices.txt this is dynamic
+         std::string tmp;
+-        if (!ReadFileToString(kSysfsMmcMaxMinors, &tmp)) {
++        if (!ReadFileToString(kSysfsMmcMaxMinors, &tmp) &&
++                !ReadFileToString(kSysfsMmcMaxMinorsDeprecated, &tmp)) {
+             LOG(ERROR) << "Failed to read max minors";
+             return -errno;
+         }
+diff -prNu android-8.1.0_r65/system/vold/Ext4Crypt.cpp android-8.1.0_r65-phh/system/vold/Ext4Crypt.cpp
+--- android-8.1.0_r65/system/vold/Ext4Crypt.cpp	2026-05-04 20:38:03.355931644 -0400
++++ android-8.1.0_r65-phh/system/vold/Ext4Crypt.cpp	2026-05-04 20:39:14.539936706 -0400
+@@ -211,6 +211,7 @@ static bool prepare_dir(const std::strin
+ static bool destroy_dir(const std::string& dir) {
+     LOG(DEBUG) << "Destroying: " << dir;
+     if (rmdir(dir.c_str()) != 0 && errno != ENOENT) {
++        if(unlink(dir.c_str()) == 0) return true;
+         PLOG(ERROR) << "Failed to destroy " << dir;
+         return false;
+     }
